@@ -846,7 +846,7 @@ section {
 }
 
 .traitors-logo {
-  width: clamp(180px, 40vw, 280px);
+  width: clamp(220px, 55vw, 420px);
   height: auto;
   filter: drop-shadow(0 0 20px rgba(218,165,32,0.3));
 }
@@ -1097,94 +1097,7 @@ section {
 
     <!-- Traitors Logo -->
     <div class="traitors-logo-wrapper">
-      <svg class="traitors-logo" viewBox="0 0 400 480" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <radialGradient id="logoGlow" cx="50%" cy="40%" r="60%">
-            <stop offset="0%" stop-color="#FFD700" stop-opacity="0.15"/>
-            <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
-          </radialGradient>
-          <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#DAA520"/>
-            <stop offset="50%" stop-color="#FFD700"/>
-            <stop offset="100%" stop-color="#DAA520"/>
-          </linearGradient>
-          <linearGradient id="goldVertical" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#FFD700"/>
-            <stop offset="100%" stop-color="#B8860B"/>
-          </linearGradient>
-        </defs>
-
-        <!-- Subtle background glow -->
-        <ellipse cx="200" cy="200" rx="180" ry="200" fill="url(#logoGlow)"/>
-
-        <!-- Outer ornate circle -->
-        <circle cx="200" cy="200" r="185" fill="none" stroke="#DAA520" stroke-width="3" opacity="0.6"/>
-        <circle cx="200" cy="200" r="178" fill="none" stroke="#B8860B" stroke-width="1" opacity="0.4"/>
-        <circle cx="200" cy="200" r="172" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.3"/>
-
-        <!-- Decorative dots around outer ring -->
-        <g opacity="0.5">
-          <circle cx="200" cy="12" r="3" fill="#DAA520"/><circle cx="260" cy="20" r="2" fill="#DAA520"/>
-          <circle cx="312" cy="48" r="3" fill="#DAA520"/><circle cx="350" cy="90" r="2" fill="#DAA520"/>
-          <circle cx="372" cy="140" r="3" fill="#DAA520"/><circle cx="385" cy="200" r="2" fill="#DAA520"/>
-          <circle cx="372" cy="260" r="3" fill="#DAA520"/><circle cx="350" cy="310" r="2" fill="#DAA520"/>
-          <circle cx="312" cy="352" r="3" fill="#DAA520"/><circle cx="260" cy="380" r="2" fill="#DAA520"/>
-          <circle cx="200" cy="388" r="3" fill="#DAA520"/><circle cx="140" cy="380" r="2" fill="#DAA520"/>
-          <circle cx="88" cy="352" r="3" fill="#DAA520"/><circle cx="50" cy="310" r="2" fill="#DAA520"/>
-          <circle cx="28" cy="260" r="3" fill="#DAA520"/><circle cx="15" cy="200" r="2" fill="#DAA520"/>
-          <circle cx="28" cy="140" r="3" fill="#DAA520"/><circle cx="50" cy="90" r="2" fill="#DAA520"/>
-          <circle cx="88" cy="48" r="3" fill="#DAA520"/><circle cx="140" cy="20" r="2" fill="#DAA520"/>
-        </g>
-
-        <!-- Shield shape -->
-        <path d="M200 55 L320 100 L320 230 Q320 340 200 380 Q80 340 80 230 L80 100 Z"
-              fill="none" stroke="url(#goldGrad)" stroke-width="3"/>
-        <path d="M200 70 L308 110 L308 225 Q308 325 200 365 Q92 325 92 225 L92 110 Z"
-              fill="none" stroke="#DAA520" stroke-width="1.2" opacity="0.4"/>
-
-        <!-- Vertical sword -->
-        <line x1="200" y1="105" x2="200" y2="330" stroke="url(#goldVertical)" stroke-width="4" stroke-linecap="round"/>
-
-        <!-- Sword pommel -->
-        <circle cx="200" cy="95" r="10" fill="#FFD700" stroke="#B8860B" stroke-width="1.5"/>
-        <circle cx="200" cy="95" r="4" fill="#B8860B"/>
-
-        <!-- Grip wrapping -->
-        <line x1="195" y1="112" x2="205" y2="118" stroke="#B8860B" stroke-width="1.5" opacity="0.6"/>
-        <line x1="195" y1="120" x2="205" y2="126" stroke="#B8860B" stroke-width="1.5" opacity="0.6"/>
-        <line x1="195" y1="128" x2="205" y2="134" stroke="#B8860B" stroke-width="1.5" opacity="0.6"/>
-
-        <!-- Crossguard -->
-        <line x1="148" y1="150" x2="252" y2="150" stroke="#FFD700" stroke-width="4.5" stroke-linecap="round"/>
-        <!-- Crossguard end flourishes -->
-        <path d="M145 145 Q140 150 145 155" fill="none" stroke="#FFD700" stroke-width="2"/>
-        <path d="M255 145 Q260 150 255 155" fill="none" stroke="#FFD700" stroke-width="2"/>
-
-        <!-- Blade tip -->
-        <polygon points="200,340 193,325 207,325" fill="#FFD700"/>
-
-        <!-- Decorative elements on shield -->
-        <!-- Top left flourish -->
-        <path d="M120 130 Q135 145 125 160" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.5"/>
-        <path d="M130 125 Q145 140 135 155" fill="none" stroke="#DAA520" stroke-width="1" opacity="0.3"/>
-        <!-- Top right flourish -->
-        <path d="M280 130 Q265 145 275 160" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.5"/>
-        <path d="M270 125 Q255 140 265 155" fill="none" stroke="#DAA520" stroke-width="1" opacity="0.3"/>
-        <!-- Bottom left flourish -->
-        <path d="M120 250 Q140 270 130 290" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.4"/>
-        <!-- Bottom right flourish -->
-        <path d="M280 250 Q260 270 270 290" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.4"/>
-
-        <!-- Small diamond accents -->
-        <polygon points="200,175 205,180 200,185 195,180" fill="#FFD700" opacity="0.6"/>
-        <polygon points="200,210 204,215 200,220 196,215" fill="#FFD700" opacity="0.5"/>
-        <polygon points="200,245 204,250 200,255 196,250" fill="#FFD700" opacity="0.4"/>
-        <polygon points="200,280 204,285 200,290 196,285" fill="#FFD700" opacity="0.3"/>
-
-        <!-- "THE TRAITORS" text -->
-        <text x="200" y="420" text-anchor="middle" font-family="serif" font-size="16" fill="#B8860B" letter-spacing="6" font-weight="400">THE</text>
-        <text x="200" y="455" text-anchor="middle" font-family="serif" font-size="32" fill="#FFD700" letter-spacing="8" font-weight="700">TRAITORS</text>
-      </svg>
+      <img class="traitors-logo" src="traitors-logo.png" alt="The Traitors">
     </div>
 
     <p class="summoned-text">You have been summoned to the roundtable&hellip;</p>
