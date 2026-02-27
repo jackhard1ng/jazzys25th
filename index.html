@@ -525,20 +525,25 @@ section {
    </div>
 */
 
-.dress-code-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: center;
-  margin-top: 1rem;
+.dress-code-moodboard {
+  margin-top: 1.5rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(218,165,32,0.25);
 }
 
-.dress-code-images img {
-  width: 200px;
-  height: 260px;
-  object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid rgba(218,165,32,0.3);
+.dress-code-moodboard img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.dress-code-note {
+  margin-top: 1.25rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--parchment-dark);
+  font-style: italic;
 }
 
 /* ==========================================================================
@@ -985,50 +990,6 @@ section {
   margin-bottom: 1.5rem;
 }
 
-.allegiance-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-}
-
-.allegiance-btn {
-  flex: 1;
-  max-width: 200px;
-  padding: 1rem 1.5rem;
-  font-family: var(--font-heading);
-  font-size: clamp(0.85rem, 2vw, 1rem);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border: 2px solid;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.allegiance-btn-faithful {
-  color: var(--black-deep);
-  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
-  border-color: var(--gold);
-}
-
-.allegiance-btn-faithful:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 25px rgba(218,165,32,0.5);
-}
-
-.allegiance-btn-traitor {
-  color: var(--crimson);
-  background: transparent;
-  border-color: var(--crimson);
-}
-
-.allegiance-btn-traitor:hover {
-  background: rgba(139,0,0,0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 25px rgba(220,20,60,0.3);
-}
-
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1332,35 +1293,13 @@ section {
     <h2>Attire</h2>
 
     <div class="dress-code-content">
-      <p>Scottish-inspired formal attire encouraged.</p>
-      <p style="margin-top: 0.75rem; color: var(--stone-light); font-size: 0.95rem;">
-        More details coming soon&hellip;
-      </p>
+      <p>Dark, elegant, and moody &mdash; dress like you belong in a Scottish castle.</p>
 
-      <!-- =============================================================
-           DRESS CODE PLACEHOLDER
-           =============================================================
-           Replace the content above and uncomment sections below to add
-           specific dress code instructions, links, and images.
+      <div class="dress-code-moodboard">
+        <img src="dresscode-moodboard.jpg" alt="Dress code mood board — dark elegant formal wear inspiration">
+      </div>
 
-           EXAMPLE:
-           <div class="dress-code-extras">
-             <p style="color: var(--parchment);">
-               Think kilts, tartans, dark formal wear, cloaks, or anything
-               that looks like you belong in a Scottish castle.
-             </p>
-             <p>
-               <a href="YOUR_LINK_HERE" target="_blank" rel="noopener noreferrer">
-                 Outfit Inspiration Board &rarr;
-               </a>
-             </p>
-             <div class="dress-code-images">
-               <img src="YOUR_IMAGE_1.jpg" alt="Outfit example 1">
-               <img src="YOUR_IMAGE_2.jpg" alt="Outfit example 2">
-               <img src="YOUR_IMAGE_3.jpg" alt="Outfit example 3">
-             </div>
-           </div>
-           ============================================================= -->
+      <p class="dress-code-note">Guys &mdash; come however you&rsquo;d like. No dress code for you.</p>
     </div>
   </section>
 
@@ -1394,14 +1333,11 @@ section {
       <!-- RSVP buttons — built dynamically by JS -->
       <div id="rsvp-buttons-area"></div>
 
-      <!-- Faithful/Traitor allegiance step (shown after clicking yes) -->
+      <!-- Faithful/Traitor rhetorical moment (shown after clicking yes) -->
       <div id="allegiance-step" class="allegiance-step" style="display:none;">
         <p class="allegiance-question">But the real question is&hellip;</p>
-        <p class="allegiance-sub">Will you be faithful, or will you be a conniving traitor?</p>
-        <div class="allegiance-buttons">
-          <button class="allegiance-btn allegiance-btn-faithful" data-allegiance="faithful">Faithful</button>
-          <button class="allegiance-btn allegiance-btn-traitor" data-allegiance="traitor">Traitor</button>
-        </div>
+        <p class="allegiance-sub">Will you be a faithful ally&hellip; or a conniving traitor?</p>
+        <p class="allegiance-sub" style="color: var(--gold); font-style: normal; margin-top: 1rem; font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--font-heading);">Only time will tell&hellip;</p>
       </div>
 
       <!-- Confirmation (shown after clicking) -->
@@ -1801,23 +1737,19 @@ section {
     }
   }
 
-  // Show the "Faithful or Traitor?" step before final submission
+  // Show the "Faithful or Traitor?" rhetorical moment, then auto-submit
   function showAllegianceStep(payload) {
     pendingPayload = payload;
     rsvpArea.style.display = 'none';
     document.querySelector('.rsvp-deadline').style.display = 'none';
     allegianceStep.style.display = 'block';
-  }
 
-  // Handle allegiance button clicks
-  allegianceStep.querySelectorAll('.allegiance-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var allegiance = this.getAttribute('data-allegiance');
-      pendingPayload.allegiance = allegiance;
+    // Let the dramatic text linger, then auto-proceed to confirmation
+    setTimeout(function() {
       allegianceStep.style.display = 'none';
       submitRSVP(pendingPayload);
-    });
-  });
+    }, 3000);
+  }
 
   function submitRSVP(payload) {
     fetch(GOOGLE_SCRIPT_URL, {
@@ -1843,13 +1775,8 @@ section {
 
     var anyYes = payload.attending1 === 'yes' || (payload.attending2 && payload.attending2 === 'yes');
     if (anyYes) {
-      if (payload.allegiance === 'traitor') {
-        confirmationHeading.textContent = 'A Traitor Among Us\u2026';
-        confirmationMessage.textContent = 'Your secret is safe\u2026 for now. See you at the roundtable.';
-      } else {
-        confirmationHeading.textContent = 'Your Allegiance Has Been Sealed';
-        confirmationMessage.textContent = 'A faithful ally. We look forward to seeing you at the roundtable.';
-      }
+      confirmationHeading.textContent = 'Your Allegiance Has Been Sealed';
+      confirmationMessage.textContent = 'We look forward to seeing you at the roundtable.';
     } else {
       confirmationHeading.textContent = 'Your Response Has Been Noted';
       confirmationMessage.textContent = 'You will be missed. The roundtable will not be the same without you.';
