@@ -963,6 +963,77 @@ section {
   font-size: 0.85rem;
 }
 
+/* --- Faithful / Traitor allegiance step --- */
+.allegiance-step {
+  text-align: center;
+  animation: fadeInUp 0.5s ease;
+}
+
+.allegiance-step .allegiance-question {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 3vw, 1.3rem);
+  color: var(--cream);
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.allegiance-step .allegiance-sub {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--parchment-dark);
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.allegiance-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.allegiance-btn {
+  flex: 1;
+  max-width: 200px;
+  padding: 1rem 1.5rem;
+  font-family: var(--font-heading);
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 2px solid;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.allegiance-btn-faithful {
+  color: var(--black-deep);
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+  border-color: var(--gold);
+}
+
+.allegiance-btn-faithful:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 25px rgba(218,165,32,0.5);
+}
+
+.allegiance-btn-traitor {
+  color: var(--crimson);
+  background: transparent;
+  border-color: var(--crimson);
+}
+
+.allegiance-btn-traitor:hover {
+  background: rgba(139,0,0,0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 25px rgba(220,20,60,0.3);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* --- Audio toggle button --- */
 #audio-toggle {
   position: fixed;
@@ -994,11 +1065,14 @@ section {
 
 <body>
 
-<!-- Hidden SoundCloud iframe — plays when seal is opened -->
-<iframe id="sc-player" style="display:none;" width="0" height="0" scrolling="no" frameborder="no"
+<!-- SoundCloud iframe — positioned off-screen so mobile browsers don't block it -->
+<iframe id="sc-player"
+  style="position:absolute;left:-9999px;width:1px;height:1px;"
+  scrolling="no" frameborder="no"
   allow="autoplay"
-  src="">
+  src="https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fdave-moses%2Fthe-traitors-main-theme&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=false">
 </iframe>
+<script src="https://w.soundcloud.com/player/api.js"></script>
 
 <!-- Audio toggle button (appears after seal is opened) -->
 <button id="audio-toggle" aria-label="Toggle music" title="Toggle music">
@@ -1320,6 +1394,16 @@ section {
       <!-- RSVP buttons — built dynamically by JS -->
       <div id="rsvp-buttons-area"></div>
 
+      <!-- Faithful/Traitor allegiance step (shown after clicking yes) -->
+      <div id="allegiance-step" class="allegiance-step" style="display:none;">
+        <p class="allegiance-question">But the real question is&hellip;</p>
+        <p class="allegiance-sub">Will you be faithful, or will you be a conniving traitor?</p>
+        <div class="allegiance-buttons">
+          <button class="allegiance-btn allegiance-btn-faithful" data-allegiance="faithful">Faithful</button>
+          <button class="allegiance-btn allegiance-btn-traitor" data-allegiance="traitor">Traitor</button>
+        </div>
+      </div>
+
       <!-- Confirmation (shown after clicking) -->
       <div class="rsvp-confirmation" id="rsvp-confirmation">
         <div class="check-mark">
@@ -1533,15 +1617,31 @@ section {
   const sealOverlay = document.getElementById('seal-overlay');
   const heroSection = document.getElementById('hero');
 
+  // Initialize SoundCloud Widget for reliable mobile playback
+  var scWidget = null;
+  try {
+    var scIframe = document.getElementById('sc-player');
+    if (typeof SC !== 'undefined' && SC.Widget) {
+      scWidget = SC.Widget(scIframe);
+    }
+  } catch(e) { /* Widget API not loaded yet */ }
+
   function openSeal() {
     sealOverlay.classList.add('opened');
     heroSection.classList.add('visible');
-    // Allow scrolling after opening
     document.body.style.overflow = '';
 
-    // Start Traitors theme music
-    var scPlayer = document.getElementById('sc-player');
-    if (scPlayer && !scPlayer.src.includes('soundcloud.com')) {
+    // Start Traitors theme music via Widget API (works on mobile)
+    try {
+      if (!scWidget && typeof SC !== 'undefined' && SC.Widget) {
+        scWidget = SC.Widget(document.getElementById('sc-player'));
+      }
+      if (scWidget) {
+        scWidget.play();
+      }
+    } catch(e) {
+      // Fallback: reload iframe with auto_play
+      var scPlayer = document.getElementById('sc-player');
       scPlayer.src = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fdave-moses%2Fthe-traitors-main-theme&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=false';
     }
     var audioBtn = document.getElementById('audio-toggle');
@@ -1583,16 +1683,20 @@ section {
 
 
   /* ======================================================================
-     RSVP — SIMPLE TWO-BUTTON SYSTEM
+     RSVP — TWO-BUTTON SYSTEM + FAITHFUL/TRAITOR ALLEGIANCE
      ====================================================================== */
   const rsvpArea = document.getElementById('rsvp-buttons-area');
   const rsvpConfirmation = document.getElementById('rsvp-confirmation');
   const rsvpClosed = document.getElementById('rsvp-closed');
+  const allegianceStep = document.getElementById('allegiance-step');
   const confirmationMessage = document.getElementById('confirmation-message');
   const confirmationHeading = document.getElementById('confirmation-heading');
 
   const now = new Date();
   const isPastDeadline = now > RSVP_DEADLINE;
+
+  // Pending payload stored here while user picks faithful/traitor
+  var pendingPayload = null;
 
   if (isPastDeadline) {
     rsvpArea.style.display = 'none';
@@ -1605,7 +1709,6 @@ section {
 
   function buildRSVPButtons() {
     if (guest && guest.type === 'couple') {
-      // Couple — each person gets their own yes/no buttons
       var grid = document.createElement('div');
       grid.className = 'rsvp-couple-grid';
 
@@ -1625,7 +1728,6 @@ section {
 
       rsvpArea.appendChild(grid);
 
-      // Track individual responses for couple
       var coupleResponses = {};
       rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -1633,11 +1735,9 @@ section {
           var response = this.getAttribute('data-response');
           coupleResponses[name] = response;
 
-          // Disable both buttons in this member's group
           var parentMember = this.closest('.rsvp-couple-member');
           parentMember.querySelectorAll('.rsvp-btn').forEach(function(b) { b.disabled = true; });
 
-          // Highlight the chosen one
           if (response === 'yes') {
             this.style.boxShadow = '0 0 20px rgba(218,165,32,0.6)';
           } else {
@@ -1646,9 +1746,8 @@ section {
             this.style.color = 'var(--crimson)';
           }
 
-          // If both have responded, submit
           if (Object.keys(coupleResponses).length === guest.names.length) {
-            submitRSVP({
+            var payload = {
               inviteId: inviteId,
               timestamp: new Date().toISOString(),
               type: 'couple',
@@ -1656,13 +1755,18 @@ section {
               attending1: coupleResponses[guest.names[0]],
               name2: guest.names[1],
               attending2: coupleResponses[guest.names[1]]
-            });
+            };
+            var anyYes = payload.attending1 === 'yes' || payload.attending2 === 'yes';
+            if (anyYes) {
+              showAllegianceStep(payload);
+            } else {
+              submitRSVP(payload);
+            }
           }
         });
       });
 
     } else {
-      // Solo guest or unknown
       var name = guest ? guest.names[0] : 'Guest';
       if (guest) {
         rsvpArea.innerHTML =
@@ -1677,20 +1781,43 @@ section {
       rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
           var response = this.getAttribute('data-response');
-          // Disable both buttons
           rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(b) { b.disabled = true; });
 
-          submitRSVP({
+          var payload = {
             inviteId: inviteId || 'unknown',
             timestamp: new Date().toISOString(),
             type: guest ? 'solo' : 'unknown',
             name1: guest ? guest.names[0] : 'Unknown Guest',
             attending1: response
-          });
+          };
+
+          if (response === 'yes') {
+            showAllegianceStep(payload);
+          } else {
+            submitRSVP(payload);
+          }
         });
       });
     }
   }
+
+  // Show the "Faithful or Traitor?" step before final submission
+  function showAllegianceStep(payload) {
+    pendingPayload = payload;
+    rsvpArea.style.display = 'none';
+    document.querySelector('.rsvp-deadline').style.display = 'none';
+    allegianceStep.style.display = 'block';
+  }
+
+  // Handle allegiance button clicks
+  allegianceStep.querySelectorAll('.allegiance-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var allegiance = this.getAttribute('data-allegiance');
+      pendingPayload.allegiance = allegiance;
+      allegianceStep.style.display = 'none';
+      submitRSVP(pendingPayload);
+    });
+  });
 
   function submitRSVP(payload) {
     fetch(GOOGLE_SCRIPT_URL, {
@@ -1704,20 +1831,25 @@ section {
     })
     .catch(function(err) {
       console.error('RSVP submission error:', err);
-      // Still show confirmation — with no-cors we can't tell if it failed
       showConfirmation(payload);
     });
   }
 
   function showConfirmation(payload) {
     rsvpArea.style.display = 'none';
+    allegianceStep.style.display = 'none';
     document.querySelector('.rsvp-deadline').style.display = 'none';
     rsvpConfirmation.classList.add('show');
 
     var anyYes = payload.attending1 === 'yes' || (payload.attending2 && payload.attending2 === 'yes');
     if (anyYes) {
-      confirmationHeading.textContent = 'Your Allegiance Has Been Sealed';
-      confirmationMessage.textContent = 'We look forward to seeing you at the roundtable.';
+      if (payload.allegiance === 'traitor') {
+        confirmationHeading.textContent = 'A Traitor Among Us\u2026';
+        confirmationMessage.textContent = 'Your secret is safe\u2026 for now. See you at the roundtable.';
+      } else {
+        confirmationHeading.textContent = 'Your Allegiance Has Been Sealed';
+        confirmationMessage.textContent = 'A faithful ally. We look forward to seeing you at the roundtable.';
+      }
     } else {
       confirmationHeading.textContent = 'Your Response Has Been Noted';
       confirmationMessage.textContent = 'You will be missed. The roundtable will not be the same without you.';
@@ -1744,19 +1876,22 @@ section {
   var iconOff = document.getElementById('audio-icon-off');
 
   audioToggleBtn.addEventListener('click', function() {
-    var scPlayer = document.getElementById('sc-player');
-    if (audioPlaying) {
-      // Mute by clearing the src
-      scPlayer.dataset.savedSrc = scPlayer.src;
-      scPlayer.src = '';
-      iconOn.style.display = 'none';
-      iconOff.style.display = 'block';
-    } else {
-      // Resume by restoring the src
-      scPlayer.src = scPlayer.dataset.savedSrc || 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fdave-moses%2Fthe-traitors-main-theme&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=false';
-      iconOn.style.display = 'block';
-      iconOff.style.display = 'none';
-    }
+    try {
+      if (!scWidget && typeof SC !== 'undefined' && SC.Widget) {
+        scWidget = SC.Widget(document.getElementById('sc-player'));
+      }
+      if (scWidget) {
+        if (audioPlaying) {
+          scWidget.pause();
+          iconOn.style.display = 'none';
+          iconOff.style.display = 'block';
+        } else {
+          scWidget.play();
+          iconOn.style.display = 'block';
+          iconOff.style.display = 'none';
+        }
+      }
+    } catch(e) { /* fallback silently */ }
     audioPlaying = !audioPlaying;
   });
 
