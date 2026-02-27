@@ -18,8 +18,6 @@
  *    E1: Attending 1
  *    F1: Name 2
  *    G1: Attending 2
- *    H1: Dietary Restrictions
- *    I1: Notes
  *
  * 4. In the Google Sheet, go to Extensions → Apps Script
  *
@@ -63,19 +61,17 @@ function doPost(e) {
       // Create the sheet if it doesn't exist
       sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(SHEET_NAME);
       // Add headers
-      sheet.getRange(1, 1, 1, 9).setValues([[
+      sheet.getRange(1, 1, 1, 7).setValues([[
         'Timestamp',
         'Invite ID',
         'Type',
         'Name 1',
         'Attending 1',
         'Name 2',
-        'Attending 2',
-        'Dietary Restrictions',
-        'Notes'
+        'Attending 2'
       ]]);
       // Bold headers
-      sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+      sheet.getRange(1, 1, 1, 7).setFontWeight('bold');
       // Freeze header row
       sheet.setFrozenRows(1);
     }
@@ -90,9 +86,7 @@ function doPost(e) {
       data.name1 || '',
       data.attending1 || '',
       data.name2 || '',
-      data.attending2 || '',
-      data.dietary || '',
-      data.notes || ''
+      data.attending2 || ''
     ]);
 
     // Return success (note: with no-cors mode the client can't read this,

@@ -836,6 +836,133 @@ section {
   border: 0;
 }
 
+/* ==========================================================================
+   TRAITORS LOGO
+   ========================================================================== */
+.traitors-logo-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0 1rem;
+}
+
+.traitors-logo {
+  width: clamp(180px, 40vw, 280px);
+  height: auto;
+  filter: drop-shadow(0 0 20px rgba(218,165,32,0.3));
+}
+
+/* ==========================================================================
+   RSVP BUTTONS (simplified)
+   ========================================================================== */
+.rsvp-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.rsvp-btn {
+  flex: 1;
+  max-width: 220px;
+  padding: 1rem 1.5rem;
+  font-family: var(--font-heading);
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 2px solid var(--gold);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.rsvp-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.rsvp-btn-yes {
+  color: var(--black-deep);
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+}
+
+.rsvp-btn-yes:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 25px rgba(218,165,32,0.5);
+}
+
+.rsvp-btn-no {
+  color: var(--gold);
+  background: transparent;
+}
+
+.rsvp-btn-no:hover {
+  background: rgba(218,165,32,0.1);
+  transform: translateY(-2px);
+}
+
+.rsvp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.rsvp-btn:active {
+  transform: translateY(0);
+}
+
+.rsvp-name-tag {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  color: var(--parchment);
+  font-style: italic;
+  margin-bottom: 0.25rem;
+}
+
+.rsvp-couple-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 480px) {
+  .rsvp-couple-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rsvp-couple-member {
+  text-align: center;
+  padding: 1.25rem 1rem;
+  border: 1px solid rgba(218,165,32,0.15);
+  border-radius: 4px;
+  background: rgba(218,165,32,0.03);
+}
+
+.rsvp-couple-member h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.rsvp-couple-member .rsvp-buttons {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rsvp-couple-member .rsvp-btn {
+  max-width: none;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+
 /* --- Audio toggle button --- */
 #audio-toggle {
   position: fixed;
@@ -968,48 +1095,101 @@ section {
       <circle cx="200" cy="15" r="2" fill="#DAA520" opacity="0.6"/>
     </svg>
 
+    <!-- Traitors Logo -->
+    <div class="traitors-logo-wrapper">
+      <svg class="traitors-logo" viewBox="0 0 400 480" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="logoGlow" cx="50%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#FFD700" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#DAA520"/>
+            <stop offset="50%" stop-color="#FFD700"/>
+            <stop offset="100%" stop-color="#DAA520"/>
+          </linearGradient>
+          <linearGradient id="goldVertical" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#FFD700"/>
+            <stop offset="100%" stop-color="#B8860B"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Subtle background glow -->
+        <ellipse cx="200" cy="200" rx="180" ry="200" fill="url(#logoGlow)"/>
+
+        <!-- Outer ornate circle -->
+        <circle cx="200" cy="200" r="185" fill="none" stroke="#DAA520" stroke-width="3" opacity="0.6"/>
+        <circle cx="200" cy="200" r="178" fill="none" stroke="#B8860B" stroke-width="1" opacity="0.4"/>
+        <circle cx="200" cy="200" r="172" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.3"/>
+
+        <!-- Decorative dots around outer ring -->
+        <g opacity="0.5">
+          <circle cx="200" cy="12" r="3" fill="#DAA520"/><circle cx="260" cy="20" r="2" fill="#DAA520"/>
+          <circle cx="312" cy="48" r="3" fill="#DAA520"/><circle cx="350" cy="90" r="2" fill="#DAA520"/>
+          <circle cx="372" cy="140" r="3" fill="#DAA520"/><circle cx="385" cy="200" r="2" fill="#DAA520"/>
+          <circle cx="372" cy="260" r="3" fill="#DAA520"/><circle cx="350" cy="310" r="2" fill="#DAA520"/>
+          <circle cx="312" cy="352" r="3" fill="#DAA520"/><circle cx="260" cy="380" r="2" fill="#DAA520"/>
+          <circle cx="200" cy="388" r="3" fill="#DAA520"/><circle cx="140" cy="380" r="2" fill="#DAA520"/>
+          <circle cx="88" cy="352" r="3" fill="#DAA520"/><circle cx="50" cy="310" r="2" fill="#DAA520"/>
+          <circle cx="28" cy="260" r="3" fill="#DAA520"/><circle cx="15" cy="200" r="2" fill="#DAA520"/>
+          <circle cx="28" cy="140" r="3" fill="#DAA520"/><circle cx="50" cy="90" r="2" fill="#DAA520"/>
+          <circle cx="88" cy="48" r="3" fill="#DAA520"/><circle cx="140" cy="20" r="2" fill="#DAA520"/>
+        </g>
+
+        <!-- Shield shape -->
+        <path d="M200 55 L320 100 L320 230 Q320 340 200 380 Q80 340 80 230 L80 100 Z"
+              fill="none" stroke="url(#goldGrad)" stroke-width="3"/>
+        <path d="M200 70 L308 110 L308 225 Q308 325 200 365 Q92 325 92 225 L92 110 Z"
+              fill="none" stroke="#DAA520" stroke-width="1.2" opacity="0.4"/>
+
+        <!-- Vertical sword -->
+        <line x1="200" y1="105" x2="200" y2="330" stroke="url(#goldVertical)" stroke-width="4" stroke-linecap="round"/>
+
+        <!-- Sword pommel -->
+        <circle cx="200" cy="95" r="10" fill="#FFD700" stroke="#B8860B" stroke-width="1.5"/>
+        <circle cx="200" cy="95" r="4" fill="#B8860B"/>
+
+        <!-- Grip wrapping -->
+        <line x1="195" y1="112" x2="205" y2="118" stroke="#B8860B" stroke-width="1.5" opacity="0.6"/>
+        <line x1="195" y1="120" x2="205" y2="126" stroke="#B8860B" stroke-width="1.5" opacity="0.6"/>
+        <line x1="195" y1="128" x2="205" y2="134" stroke="#B8860B" stroke-width="1.5" opacity="0.6"/>
+
+        <!-- Crossguard -->
+        <line x1="148" y1="150" x2="252" y2="150" stroke="#FFD700" stroke-width="4.5" stroke-linecap="round"/>
+        <!-- Crossguard end flourishes -->
+        <path d="M145 145 Q140 150 145 155" fill="none" stroke="#FFD700" stroke-width="2"/>
+        <path d="M255 145 Q260 150 255 155" fill="none" stroke="#FFD700" stroke-width="2"/>
+
+        <!-- Blade tip -->
+        <polygon points="200,340 193,325 207,325" fill="#FFD700"/>
+
+        <!-- Decorative elements on shield -->
+        <!-- Top left flourish -->
+        <path d="M120 130 Q135 145 125 160" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.5"/>
+        <path d="M130 125 Q145 140 135 155" fill="none" stroke="#DAA520" stroke-width="1" opacity="0.3"/>
+        <!-- Top right flourish -->
+        <path d="M280 130 Q265 145 275 160" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.5"/>
+        <path d="M270 125 Q255 140 265 155" fill="none" stroke="#DAA520" stroke-width="1" opacity="0.3"/>
+        <!-- Bottom left flourish -->
+        <path d="M120 250 Q140 270 130 290" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.4"/>
+        <!-- Bottom right flourish -->
+        <path d="M280 250 Q260 270 270 290" fill="none" stroke="#DAA520" stroke-width="1.5" opacity="0.4"/>
+
+        <!-- Small diamond accents -->
+        <polygon points="200,175 205,180 200,185 195,180" fill="#FFD700" opacity="0.6"/>
+        <polygon points="200,210 204,215 200,220 196,215" fill="#FFD700" opacity="0.5"/>
+        <polygon points="200,245 204,250 200,255 196,250" fill="#FFD700" opacity="0.4"/>
+        <polygon points="200,280 204,285 200,290 196,285" fill="#FFD700" opacity="0.3"/>
+
+        <!-- "THE TRAITORS" text -->
+        <text x="200" y="420" text-anchor="middle" font-family="serif" font-size="16" fill="#B8860B" letter-spacing="6" font-weight="400">THE</text>
+        <text x="200" y="455" text-anchor="middle" font-family="serif" font-size="32" fill="#FFD700" letter-spacing="8" font-weight="700">TRAITORS</text>
+      </svg>
+    </div>
+
     <p class="summoned-text">You have been summoned to the roundtable&hellip;</p>
 
     <h1 class="guest-name" id="guest-name">Honored Guest</h1>
-
-    <!-- Small wax seal -->
-    <div class="wax-seal-wrapper">
-      <svg class="wax-seal" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="
-          M100 5
-          C108 15, 120 12, 125 5 C130 12, 140 18, 148 12
-          C150 22, 160 25, 168 20 C167 30, 175 38, 182 35
-          C178 45, 185 52, 192 52 C186 60, 190 70, 198 73
-          C190 78, 192 88, 198 95 C190 97, 188 107, 195 113
-          C187 117, 186 127, 192 135 C184 136, 180 145, 185 153
-          C177 152, 170 158, 172 167 C164 163, 156 168, 155 177
-          C149 171, 140 173, 137 182 C132 175, 123 175, 118 182
-          C115 174, 106 174, 100 180
-          C94 174, 85 174, 82 182
-          C77 175, 68 175, 63 182
-          C60 173, 51 171, 45 177
-          C44 168, 36 163, 28 167
-          C30 158, 23 152, 15 153
-          C20 145, 16 136, 8 135
-          C14 127, 13 117, 5 113
-          C12 107, 10 97, 2 95
-          C8 88, 10 78, 2 73
-          C10 70, 14 60, 8 52
-          C15 52, 22 45, 18 35
-          C25 38, 33 30, 32 20
-          C40 25, 50 22, 52 12
-          C60 18, 70 12, 75 5
-          C80 12, 92 15, 100 5Z
-        " fill="#8B0000" stroke="#a01010" stroke-width="1"/>
-        <circle cx="100" cy="100" r="68" fill="none" stroke="#a01010" stroke-width="2" opacity="0.5"/>
-        <path d="M100 45 L135 65 L135 105 Q135 135 100 155 Q65 135 65 105 L65 65 Z"
-              fill="none" stroke="#DAA520" stroke-width="2" opacity="0.8"/>
-        <line x1="100" y1="55" x2="100" y2="140" stroke="#DAA520" stroke-width="2.5" stroke-linecap="round"/>
-        <line x1="85" y1="82" x2="115" y2="82" stroke="#DAA520" stroke-width="2.5" stroke-linecap="round"/>
-        <circle cx="100" cy="55" r="4" fill="#DAA520" opacity="0.9"/>
-        <path d="M97 135 L100 145 L103 135" fill="#DAA520" opacity="0.8"/>
-      </svg>
-    </div>
 
     <p class="hero-subtitle">Your presence is requested for a game of Traitors&hellip;</p>
 
@@ -1222,36 +1402,23 @@ section {
     <h2 style="text-align:center; margin-bottom: 1.5rem;">Declare Your Allegiance</h2>
 
     <div class="rsvp-container">
-      <p class="rsvp-deadline" style="color: var(--gold); font-size: 1.1rem;">RSVPs Opening Soon</p>
-      <p style="text-align: center; font-family: var(--font-body); font-size: 1.2rem; color: var(--cream); opacity: 0.8; margin-top: 0.5rem;">
-        The roundtable is being prepared&hellip; check back soon to declare your allegiance.
-      </p>
+      <p class="rsvp-deadline">RSVP by April 25th, 2025</p>
 
-      <!-- RSVP Form — hidden until RSVPs open -->
-      <form id="rsvp-form" novalidate style="display: none;">
-        <div id="rsvp-form-fields"></div>
-        <div class="form-group">
-          <label for="dietary">Dietary Restrictions / Allergies</label>
-          <input type="text" id="dietary" name="dietary" placeholder="Any allergies or dietary needs?">
-        </div>
-        <div class="form-group">
-          <label for="notes">Secret Message <span style="opacity: 0.5; text-transform: none; letter-spacing: normal; font-family: var(--font-body);">(optional)</span></label>
-          <textarea id="notes" name="notes" placeholder="Any notes for the host?"></textarea>
-        </div>
-        <p class="form-error" id="form-error"></p>
-        <button type="submit" class="btn-submit" id="btn-submit">Seal Your Fate</button>
-      </form>
+      <!-- RSVP buttons — built dynamically by JS -->
+      <div id="rsvp-buttons-area"></div>
 
+      <!-- Confirmation (shown after clicking) -->
       <div class="rsvp-confirmation" id="rsvp-confirmation">
         <div class="check-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-        <h3>Your Allegiance Has Been Sealed</h3>
+        <h3 id="confirmation-heading">Your Allegiance Has Been Sealed</h3>
         <p id="confirmation-message">We look forward to seeing you at the roundtable.</p>
       </div>
 
+      <!-- RSVP Closed message -->
       <div class="rsvp-closed-msg" id="rsvp-closed" style="display:none;">
         RSVPs are now closed. If you need to reach the host, send a raven&hellip; or a text.
       </div>
@@ -1503,191 +1670,143 @@ section {
 
 
   /* ======================================================================
-     RSVP FORM — BUILD DYNAMICALLY
+     RSVP — SIMPLE TWO-BUTTON SYSTEM
      ====================================================================== */
-  const rsvpForm = document.getElementById('rsvp-form');
-  const rsvpFormFields = document.getElementById('rsvp-form-fields');
+  const rsvpArea = document.getElementById('rsvp-buttons-area');
   const rsvpConfirmation = document.getElementById('rsvp-confirmation');
   const rsvpClosed = document.getElementById('rsvp-closed');
-  const formError = document.getElementById('form-error');
-  const btnSubmit = document.getElementById('btn-submit');
   const confirmationMessage = document.getElementById('confirmation-message');
+  const confirmationHeading = document.getElementById('confirmation-heading');
 
   const now = new Date();
   const isPastDeadline = now > RSVP_DEADLINE;
 
-  // RSVPs not yet open — keep form hidden
-  const RSVP_OPEN = false; // Set to true when ready to accept RSVPs
-
-  if (!RSVP_OPEN) {
-    // RSVPs not yet open — form stays hidden, "coming soon" message shows
-    rsvpForm.style.display = 'none';
-  } else if (isPastDeadline) {
-    // RSVPs are closed
-    rsvpForm.style.display = 'none';
+  if (isPastDeadline) {
+    rsvpArea.style.display = 'none';
     rsvpClosed.style.display = 'block';
     document.querySelector('.rsvp-deadline').textContent = 'RSVPs ARE NOW CLOSED';
     document.querySelector('.rsvp-deadline').style.color = 'var(--stone-light)';
   } else {
-    // Build form fields based on guest type
-    buildRSVPForm();
+    buildRSVPButtons();
   }
 
-  function buildRSVPForm() {
+  function buildRSVPButtons() {
     if (guest && guest.type === 'couple') {
-      // Couple RSVP — two columns
-      const coupleDiv = document.createElement('div');
-      coupleDiv.className = 'couple-rsvp';
+      // Couple — each person gets their own yes/no buttons
+      var grid = document.createElement('div');
+      grid.className = 'rsvp-couple-grid';
 
       guest.names.forEach(function(name, index) {
-        const memberDiv = document.createElement('div');
-        memberDiv.className = 'couple-member';
-        memberDiv.innerHTML =
+        var member = document.createElement('div');
+        member.className = 'rsvp-couple-member';
+        member.setAttribute('data-name', name);
+        member.setAttribute('data-index', index);
+        member.innerHTML =
           '<h3>' + escapeHtml(name) + '</h3>' +
-          '<div class="form-group">' +
-            '<label for="attending-' + index + '">Attending?</label>' +
-            '<select id="attending-' + index + '" name="attending-' + index + '" required>' +
-              '<option value="">Choose&hellip;</option>' +
-              '<option value="yes">Yes, I\'ll be there</option>' +
-              '<option value="no">Regretfully, no</option>' +
-            '</select>' +
+          '<div class="rsvp-buttons">' +
+            '<button class="rsvp-btn rsvp-btn-yes" data-response="yes" data-name="' + escapeHtml(name) + '">I\'ll Be There</button>' +
+            '<button class="rsvp-btn rsvp-btn-no" data-response="no" data-name="' + escapeHtml(name) + '">Can\'t Make It</button>' +
           '</div>';
-        coupleDiv.appendChild(memberDiv);
+        grid.appendChild(member);
       });
 
-      rsvpFormFields.appendChild(coupleDiv);
+      rsvpArea.appendChild(grid);
 
-    } else if (guest && guest.type === 'solo') {
-      // Solo RSVP
-      const soloDiv = document.createElement('div');
-      soloDiv.className = 'form-group';
-      soloDiv.innerHTML =
-        '<label for="attending">Will you be joining us, ' + escapeHtml(guest.names[0]) + '?</label>' +
-        '<select id="attending" name="attending" required>' +
-          '<option value="">Choose&hellip;</option>' +
-          '<option value="yes">Yes, I\'ll be there</option>' +
-          '<option value="no">Regretfully, no</option>' +
-        '</select>';
-      rsvpFormFields.appendChild(soloDiv);
+      // Track individual responses for couple
+      var coupleResponses = {};
+      rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var name = this.getAttribute('data-name');
+          var response = this.getAttribute('data-response');
+          coupleResponses[name] = response;
+
+          // Disable both buttons in this member's group
+          var parentMember = this.closest('.rsvp-couple-member');
+          parentMember.querySelectorAll('.rsvp-btn').forEach(function(b) { b.disabled = true; });
+
+          // Highlight the chosen one
+          if (response === 'yes') {
+            this.style.boxShadow = '0 0 20px rgba(218,165,32,0.6)';
+          } else {
+            this.style.background = 'rgba(139,0,0,0.3)';
+            this.style.borderColor = 'var(--crimson)';
+            this.style.color = 'var(--crimson)';
+          }
+
+          // If both have responded, submit
+          if (Object.keys(coupleResponses).length === guest.names.length) {
+            submitRSVP({
+              inviteId: inviteId,
+              timestamp: new Date().toISOString(),
+              type: 'couple',
+              name1: guest.names[0],
+              attending1: coupleResponses[guest.names[0]],
+              name2: guest.names[1],
+              attending2: coupleResponses[guest.names[1]]
+            });
+          }
+        });
+      });
 
     } else {
-      // Unknown guest — solo-style with name field
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'form-group';
-      nameDiv.innerHTML =
-        '<label for="guest-name-input">Your Name</label>' +
-        '<input type="text" id="guest-name-input" name="guest-name-input" placeholder="Enter your name" required>';
-      rsvpFormFields.appendChild(nameDiv);
+      // Solo guest or unknown
+      var name = guest ? guest.names[0] : 'Guest';
+      if (guest) {
+        rsvpArea.innerHTML =
+          '<p class="rsvp-name-tag">Will you be joining us, ' + escapeHtml(name) + '?</p>';
+      }
+      rsvpArea.innerHTML +=
+        '<div class="rsvp-buttons">' +
+          '<button class="rsvp-btn rsvp-btn-yes" data-response="yes">I\'ll Be There</button>' +
+          '<button class="rsvp-btn rsvp-btn-no" data-response="no">Can\'t Make It</button>' +
+        '</div>';
 
-      const attendDiv = document.createElement('div');
-      attendDiv.className = 'form-group';
-      attendDiv.innerHTML =
-        '<label for="attending">Will you be joining us?</label>' +
-        '<select id="attending" name="attending" required>' +
-          '<option value="">Choose&hellip;</option>' +
-          '<option value="yes">Yes, I\'ll be there</option>' +
-          '<option value="no">Regretfully, no</option>' +
-        '</select>';
-      rsvpFormFields.appendChild(attendDiv);
+      rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var response = this.getAttribute('data-response');
+          // Disable both buttons
+          rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(b) { b.disabled = true; });
+
+          submitRSVP({
+            inviteId: inviteId || 'unknown',
+            timestamp: new Date().toISOString(),
+            type: guest ? 'solo' : 'unknown',
+            name1: guest ? guest.names[0] : 'Unknown Guest',
+            attending1: response
+          });
+        });
+      });
     }
   }
 
-
-  /* ======================================================================
-     RSVP FORM — SUBMIT
-     ====================================================================== */
-  rsvpForm.addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    // Validate
-    formError.classList.remove('show');
-
-    if (guest && guest.type === 'couple') {
-      var a0 = document.getElementById('attending-0').value;
-      var a1 = document.getElementById('attending-1').value;
-      if (!a0 || !a1) {
-        showError('Please select attendance for both guests.');
-        return;
-      }
-    } else if (guest && guest.type === 'solo') {
-      if (!document.getElementById('attending').value) {
-        showError('Please select your attendance.');
-        return;
-      }
-    } else {
-      var nameInput = document.getElementById('guest-name-input');
-      if (!nameInput.value.trim()) {
-        showError('Please enter your name.');
-        return;
-      }
-      if (!document.getElementById('attending').value) {
-        showError('Please select your attendance.');
-        return;
-      }
-    }
-
-    // Disable button
-    btnSubmit.disabled = true;
-    btnSubmit.textContent = 'Sending...';
-
-    // Build payload
-    var payload = {
-      inviteId: inviteId || 'unknown',
-      timestamp: new Date().toISOString(),
-      dietary: document.getElementById('dietary').value.trim(),
-      notes: document.getElementById('notes').value.trim()
-    };
-
-    if (guest && guest.type === 'couple') {
-      payload.type = 'couple';
-      payload.name1 = guest.names[0];
-      payload.attending1 = document.getElementById('attending-0').value;
-      payload.name2 = guest.names[1];
-      payload.attending2 = document.getElementById('attending-1').value;
-    } else if (guest && guest.type === 'solo') {
-      payload.type = 'solo';
-      payload.name1 = guest.names[0];
-      payload.attending1 = document.getElementById('attending').value;
-    } else {
-      payload.type = 'unknown';
-      payload.name1 = document.getElementById('guest-name-input').value.trim();
-      payload.attending1 = document.getElementById('attending').value;
-    }
-
-    // Submit to Google Apps Script
+  function submitRSVP(payload) {
     fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors', // Google Apps Script requires no-cors
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
     .then(function() {
-      // With no-cors mode, we can't read the response, but the request should go through
       showConfirmation(payload);
     })
     .catch(function(err) {
       console.error('RSVP submission error:', err);
-      showError('Something went wrong. Please try again or text the host directly.');
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = 'Seal Your Fate';
+      // Still show confirmation — with no-cors we can't tell if it failed
+      showConfirmation(payload);
     });
-  });
-
-
-  function showError(msg) {
-    formError.textContent = msg;
-    formError.classList.add('show');
   }
 
   function showConfirmation(payload) {
-    rsvpForm.style.display = 'none';
+    rsvpArea.style.display = 'none';
+    document.querySelector('.rsvp-deadline').style.display = 'none';
     rsvpConfirmation.classList.add('show');
 
-    // Customize confirmation message
     var anyYes = payload.attending1 === 'yes' || (payload.attending2 && payload.attending2 === 'yes');
     if (anyYes) {
+      confirmationHeading.textContent = 'Your Allegiance Has Been Sealed';
       confirmationMessage.textContent = 'We look forward to seeing you at the roundtable.';
     } else {
+      confirmationHeading.textContent = 'Your Response Has Been Noted';
       confirmationMessage.textContent = 'You will be missed. The roundtable will not be the same without you.';
     }
   }
