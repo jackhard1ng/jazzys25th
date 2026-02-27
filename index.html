@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>You Have Been Summoned — Jazzy's Birthday</title>
+<title>You Have Been Summoned — Jazzy's 25th Birthday</title>
 <meta name="description" content="A mysterious invitation awaits. Trust no one. Suspect everyone.">
 
 <!-- Google Fonts -->
@@ -1077,7 +1077,7 @@ section {
 
       <div class="detail-item">
         <span class="detail-label">Celebrating</span>
-        <span class="detail-value">Jazzy's Birthday</span>
+        <span class="detail-value">Jazzy's 25th Birthday</span>
       </div>
 
       <div class="detail-item">
@@ -1093,9 +1093,9 @@ section {
       <div class="detail-item">
         <span class="detail-label">Location</span>
         <span class="detail-value">
-          <a href="https://www.google.com/maps/search/?api=1&query=6407+E+102nd+St+Tulsa+OK+74133"
+          <a href="https://www.google.com/maps/search/?api=1&query=6704+E+102nd+St+Tulsa+OK+74133"
              target="_blank" rel="noopener noreferrer">
-            6407 E 102nd St<br>Tulsa, OK 74133
+            6704 E 102nd St<br>Tulsa, OK 74133
           </a>
         </span>
       </div>
@@ -1222,32 +1222,26 @@ section {
     <h2 style="text-align:center; margin-bottom: 1.5rem;">Declare Your Allegiance</h2>
 
     <div class="rsvp-container">
-      <p class="rsvp-deadline">RSVP by April 25th, 2025</p>
+      <p class="rsvp-deadline" style="color: var(--gold); font-size: 1.1rem;">RSVPs Opening Soon</p>
+      <p style="text-align: center; font-family: var(--font-body); font-size: 1.2rem; color: var(--cream); opacity: 0.8; margin-top: 0.5rem;">
+        The roundtable is being prepared&hellip; check back soon to declare your allegiance.
+      </p>
 
-      <!-- RSVP Form — dynamically built by JS based on invite type -->
-      <form id="rsvp-form" novalidate>
-        <div id="rsvp-form-fields">
-          <!-- Populated by JavaScript -->
-        </div>
-
+      <!-- RSVP Form — hidden until RSVPs open -->
+      <form id="rsvp-form" novalidate style="display: none;">
+        <div id="rsvp-form-fields"></div>
         <div class="form-group">
           <label for="dietary">Dietary Restrictions / Allergies</label>
           <input type="text" id="dietary" name="dietary" placeholder="Any allergies or dietary needs?">
         </div>
-
         <div class="form-group">
           <label for="notes">Secret Message <span style="opacity: 0.5; text-transform: none; letter-spacing: normal; font-family: var(--font-body);">(optional)</span></label>
           <textarea id="notes" name="notes" placeholder="Any notes for the host?"></textarea>
         </div>
-
         <p class="form-error" id="form-error"></p>
-
-        <button type="submit" class="btn-submit" id="btn-submit">
-          Seal Your Fate
-        </button>
+        <button type="submit" class="btn-submit" id="btn-submit">Seal Your Fate</button>
       </form>
 
-      <!-- Confirmation (shown after successful submit) -->
       <div class="rsvp-confirmation" id="rsvp-confirmation">
         <div class="check-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -1258,7 +1252,6 @@ section {
         <p id="confirmation-message">We look forward to seeing you at the roundtable.</p>
       </div>
 
-      <!-- RSVP Closed message (shown after deadline) -->
       <div class="rsvp-closed-msg" id="rsvp-closed" style="display:none;">
         RSVPs are now closed. If you need to reach the host, send a raven&hellip; or a text.
       </div>
@@ -1523,7 +1516,13 @@ section {
   const now = new Date();
   const isPastDeadline = now > RSVP_DEADLINE;
 
-  if (isPastDeadline) {
+  // RSVPs not yet open — keep form hidden
+  const RSVP_OPEN = false; // Set to true when ready to accept RSVPs
+
+  if (!RSVP_OPEN) {
+    // RSVPs not yet open — form stays hidden, "coming soon" message shows
+    rsvpForm.style.display = 'none';
+  } else if (isPastDeadline) {
     // RSVPs are closed
     rsvpForm.style.display = 'none';
     rsvpClosed.style.display = 'block';
