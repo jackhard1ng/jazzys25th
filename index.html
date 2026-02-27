@@ -835,10 +835,57 @@ section {
   white-space: nowrap;
   border: 0;
 }
+
+/* --- Audio toggle button --- */
+#audio-toggle {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--stone-dark);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s, transform 0.2s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+#audio-toggle:hover {
+  background: var(--stone);
+  transform: scale(1.1);
+}
+#audio-toggle.visible {
+  display: flex;
+}
 </style>
 </head>
 
 <body>
+
+<!-- Hidden SoundCloud iframe — plays when seal is opened -->
+<iframe id="sc-player" style="display:none;" width="0" height="0" scrolling="no" frameborder="no"
+  allow="autoplay"
+  src="">
+</iframe>
+
+<!-- Audio toggle button (appears after seal is opened) -->
+<button id="audio-toggle" aria-label="Toggle music" title="Toggle music">
+  <svg id="audio-icon-on" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+  </svg>
+  <svg id="audio-icon-off" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <line x1="23" y1="9" x2="17" y2="15"/>
+    <line x1="17" y1="9" x2="23" y2="15"/>
+  </svg>
+</button>
 
 <!-- ======================================================================
      SEAL OVERLAY — Click to "open" the invitation
@@ -964,7 +1011,7 @@ section {
       </svg>
     </div>
 
-    <p class="hero-subtitle">Your presence is requested at a gathering of intrigue&hellip;</p>
+    <p class="hero-subtitle">Your presence is requested for a game of Traitors&hellip;</p>
 
     <!-- Candles -->
     <div class="candles-row" aria-hidden="true">
@@ -1079,10 +1126,15 @@ section {
   <section id="mission" class="reveal">
     <h2>The Mission</h2>
     <p>
-      Join us for an evening of mystery, betrayal, and celebration
-      as we honor Jazzy's birthday with a night of Traitors.
+      You are cordially summoned to Jazzy's 25th birthday — a night where
+      loyalty will be tested and alliances will crumble.
     </p>
-    <p>
+    <p style="margin-top: 1rem; font-size: 1.15em; color: var(--gold-bright);">
+      We will be playing The Traitors.
+    </p>
+    <p style="margin-top: 0.75rem;">
+      Faithfuls must root out the Traitors before it's too late.
+      Traitors must deceive, manipulate, and survive.
       Trust no one. Suspect everyone. And above all&hellip;
       come ready to play.
     </p>
@@ -1313,10 +1365,10 @@ section {
       names: ['David', 'Hailie'],
       greeting: 'David & Hailie'
     },
-    'gunner-natalia': {
+    'gunnar-natalia': {
       type: 'couple',
-      names: ['Gunner', 'Natalia'],
-      greeting: 'Gunner & Natalia'
+      names: ['Gunnar', 'Natalia'],
+      greeting: 'Gunnar & Natalia'
     },
     'ryan-bailey': {
       type: 'couple',
@@ -1338,20 +1390,20 @@ section {
       names: ['Tatum'],
       greeting: 'Tatum'
     },
-    'sydney': {
-      type: 'solo',
-      names: ['Sydney'],
-      greeting: 'Sydney'
+    'sydney-dean': {
+      type: 'couple',
+      names: ['Sydney', 'Dean'],
+      greeting: 'Sydney & Dean'
     },
-    'carson': {
-      type: 'solo',
-      names: ['Carson'],
-      greeting: 'Carson'
+    'carson-landon': {
+      type: 'couple',
+      names: ['Carson', 'Landon'],
+      greeting: 'Carson & Landon'
     },
-    'ellie': {
-      type: 'solo',
-      names: ['Ellie'],
-      greeting: 'Ellie'
+    'ellie-eryn': {
+      type: 'couple',
+      names: ['Ellie', 'Eryn'],
+      greeting: 'Ellie & Eryn'
     },
     'katie': {
       type: 'solo',
@@ -1413,6 +1465,14 @@ section {
     heroSection.classList.add('visible');
     // Allow scrolling after opening
     document.body.style.overflow = '';
+
+    // Start Traitors theme music
+    var scPlayer = document.getElementById('sc-player');
+    if (scPlayer && !scPlayer.src.includes('soundcloud.com')) {
+      scPlayer.src = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fdave-moses%2Fthe-traitors-main-theme&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=false';
+    }
+    var audioBtn = document.getElementById('audio-toggle');
+    audioBtn.classList.add('visible');
   }
 
   // Prevent scrolling while seal is showing
@@ -1642,6 +1702,32 @@ section {
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
   }
+
+
+  /* ======================================================================
+     AUDIO TOGGLE
+     ====================================================================== */
+  var audioPlaying = true;
+  var audioToggleBtn = document.getElementById('audio-toggle');
+  var iconOn = document.getElementById('audio-icon-on');
+  var iconOff = document.getElementById('audio-icon-off');
+
+  audioToggleBtn.addEventListener('click', function() {
+    var scPlayer = document.getElementById('sc-player');
+    if (audioPlaying) {
+      // Mute by clearing the src
+      scPlayer.dataset.savedSrc = scPlayer.src;
+      scPlayer.src = '';
+      iconOn.style.display = 'none';
+      iconOff.style.display = 'block';
+    } else {
+      // Resume by restoring the src
+      scPlayer.src = scPlayer.dataset.savedSrc || 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fdave-moses%2Fthe-traitors-main-theme&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&visual=false';
+      iconOn.style.display = 'block';
+      iconOff.style.display = 'none';
+    }
+    audioPlaying = !audioPlaying;
+  });
 
 })();
 </script>
