@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>
+// SPA route forwarder: if the URL has ?/path format (from 404.html redirect), forward to game.html
+if(window.location.search && window.location.search[1]==="/"){
+  window.location.replace("/jazzys25th/game.html"+window.location.search+window.location.hash);
+}
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>You Have Been Summoned — Jazzy's 25th Birthday</title>
+<meta name="description" content="A mysterious invitation awaits. Trust no one. Suspect everyone.">
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================================
+   CSS RESET & BASE
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* ---- Color Palette ---- */
+  --crimson-deep: #8B0000;
+  --crimson: #DC143C;
+  --crimson-glow: #ff1a3a;
+  --gold: #DAA520;
+  --gold-bright: #FFD700;
+  --gold-pale: #f0d080;
+  --black-deep: #0A0A0A;
+  --black: #1a1a1a;
+  --stone-dark: #2a2a2a;
+  --stone: #3a3a3a;
+  --stone-light: #555;
+  --cream: #f5e6c8;
+  --parchment: #e8d5b0;
+  --parchment-dark: #c4a87a;
+  --white-soft: #f0ece4;
+
+  /* ---- Fonts ---- */
+  --font-display: 'Cinzel Decorative', 'Cinzel', serif;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'Cormorant Garamond', serif;
+
+  /* ---- Sizing ---- */
+  --max-width: 800px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--cream);
+  background-color: var(--black-deep);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   BACKGROUND — CASTLE STONE TEXTURE
+   ========================================================================== */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    /* Subtle noise-like texture via layered radial gradients */
+    radial-gradient(ellipse at 20% 50%, rgba(139,0,0,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(218,165,32,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(139,0,0,0.06) 0%, transparent 50%),
+    /* Stone block pattern */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 98px,
+      rgba(255,255,255,0.02) 98px,
+      rgba(255,255,255,0.02) 100px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 148px,
+      rgba(255,255,255,0.015) 148px,
+      rgba(255,255,255,0.015) 150px
+    ),
+    linear-gradient(180deg, #0d0d0d 0%, #1a1a1a 30%, #151015 60%, #0d0d0d 100%);
+}
+
+/* Vignette overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 5vw, 2.8rem);
+  line-height: 1.3;
+  text-shadow: 0 0 30px rgba(218,165,32,0.3), 0 2px 4px rgba(0,0,0,0.8);
+}
+
+h2 {
+  font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+  margin-bottom: 1rem;
+  text-shadow: 0 0 20px rgba(218,165,32,0.2);
+}
+
+h3 {
+  font-size: clamp(1rem, 2.5vw, 1.3rem);
+  color: var(--gold-pale);
+}
+
+p {
+  font-size: clamp(1rem, 2.5vw, 1.15rem);
+  margin-bottom: 1rem;
+}
+
+a {
+  color: var(--gold);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+a:hover {
+  color: var(--gold-bright);
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
+.container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+section {
+  padding: 3rem 0;
+}
+
+/* ==========================================================================
+   SCROLL-TRIGGERED FADE-IN ANIMATION
+   ========================================================================== */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   SVG: WAX SEAL
+   ========================================================================== */
+.wax-seal-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+.wax-seal {
+  width: 140px;
+  height: 140px;
+  filter: drop-shadow(0 4px 20px rgba(139,0,0,0.6));
+  animation: sealPulse 3s ease-in-out infinite;
+  cursor: default;
+}
+
+@keyframes sealPulse {
+  0%, 100% { filter: drop-shadow(0 4px 20px rgba(139,0,0,0.5)); transform: scale(1); }
+  50% { filter: drop-shadow(0 4px 30px rgba(220,20,60,0.7)); transform: scale(1.03); }
+}
+
+/* ==========================================================================
+   SVG: DAGGER DIVIDER
+   ========================================================================== */
+.dagger-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 2rem 0;
+  opacity: 0.6;
+}
+
+.dagger-divider .line {
+  flex: 1;
+  max-width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.dagger-divider svg {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   SVG: CANDLE FLAMES
+   ========================================================================== */
+.candles-row {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  margin: 1.5rem 0;
+}
+
+.candle-wrapper {
+  position: relative;
+  width: 20px;
+  height: 80px;
+}
+
+.candle-body {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 50px;
+  background: linear-gradient(180deg, #e8d5b0, #c4a87a);
+  border-radius: 2px 2px 0 0;
+}
+
+.candle-wick {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 8px;
+  background: #333;
+}
+
+.candle-flame {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 20px;
+}
+
+.candle-flame .flame-inner {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 90%, #FFD700, #ff8c00 40%, rgba(255,69,0,0.4) 70%, transparent);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  animation: flicker 0.15s ease-in-out infinite alternate;
+}
+
+.candle-flame .flame-glow {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 32px;
+  height: 40px;
+  background: radial-gradient(ellipse, rgba(255,165,0,0.3), transparent 70%);
+  border-radius: 50%;
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0% { transform: scaleY(1) scaleX(1) rotate(-1deg); }
+  25% { transform: scaleY(1.05) scaleX(0.95) rotate(1deg); }
+  50% { transform: scaleY(0.95) scaleX(1.02) rotate(-0.5deg); }
+  75% { transform: scaleY(1.02) scaleX(0.98) rotate(0.5deg); }
+  100% { transform: scaleY(0.98) scaleX(1.01) rotate(1deg); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+/* Varied animation delays for each candle */
+.candle-wrapper:nth-child(2) .flame-inner { animation-delay: 0.05s; animation-duration: 0.18s; }
+.candle-wrapper:nth-child(3) .flame-inner { animation-delay: 0.1s; animation-duration: 0.13s; }
+.candle-wrapper:nth-child(2) .flame-glow { animation-delay: 0.5s; }
+.candle-wrapper:nth-child(3) .flame-glow { animation-delay: 1s; }
+
+/* ==========================================================================
+   HERO / OPENING SECTION
+   ========================================================================== */
+
+/* --- Full-screen seal "envelope" overlay --- */
+#seal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--black-deep);
+  cursor: pointer;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+#seal-overlay.opened {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#seal-overlay .seal-prompt {
+  font-family: var(--font-heading);
+  color: var(--gold);
+  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 2rem;
+  animation: promptFade 2s ease-in-out infinite;
+}
+
+@keyframes promptFade {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+#seal-overlay .wax-seal {
+  width: 180px;
+  height: 180px;
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#seal-overlay:hover .wax-seal {
+  transform: scale(1.08);
+}
+
+#seal-overlay .wax-seal:active {
+  transform: scale(0.95);
+}
+
+/* --- Main hero content --- */
+#hero {
+  text-align: center;
+  padding: 4rem 0 2rem;
+  opacity: 0;
+  transition: opacity 1.2s ease 0.3s;
+}
+
+#hero.visible {
+  opacity: 1;
+}
+
+.summoned-text {
+  font-family: var(--font-body);
+  font-size: clamp(1.1rem, 3vw, 1.4rem);
+  font-style: italic;
+  font-weight: 300;
+  color: var(--cream);
+  margin-bottom: 0.5rem;
+  opacity: 0;
+  animation: fadeSlideUp 1s ease forwards;
+  animation-delay: 0.8s;
+}
+
+.guest-name {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 6vw, 3.5rem);
+  color: var(--gold-bright);
+  text-shadow: 0 0 40px rgba(255,215,0,0.4), 0 0 80px rgba(218,165,32,0.2);
+  margin: 0.5rem 0 1rem;
+  opacity: 0;
+  animation: nameReveal 1.5s ease forwards;
+  animation-delay: 1.2s;
+}
+
+@keyframes nameReveal {
+  0% { opacity: 0; transform: scale(0.8); letter-spacing: 0.3em; filter: blur(4px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); letter-spacing: 0.08em; filter: blur(0); }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-subtitle {
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  font-style: italic;
+  color: var(--parchment-dark);
+  margin-top: 0.5rem;
+  opacity: 0;
+  animation: fadeSlideUp 1s ease forwards;
+  animation-delay: 2s;
+}
+
+/* ==========================================================================
+   SHIELD / CREST — PARTY DETAILS
+   ========================================================================== */
+#details {
+  padding: 2rem 0 3rem;
+}
+
+.shield-frame {
+  position: relative;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 2rem;
+  text-align: center;
+}
+
+.shield-frame svg.shield-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.detail-item {
+  margin: 1rem 0;
+}
+
+.detail-label {
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.detail-value {
+  font-family: var(--font-body);
+  font-size: clamp(1.05rem, 2.5vw, 1.25rem);
+  color: var(--cream);
+  font-weight: 500;
+}
+
+.detail-value a {
+  border-bottom: 1px solid rgba(218,165,32,0.3);
+}
+.detail-value a:hover {
+  border-bottom-color: var(--gold);
+  text-decoration: none;
+}
+
+/* ==========================================================================
+   MISSION SECTION
+   ========================================================================== */
+#mission {
+  text-align: center;
+}
+
+#mission p {
+  max-width: 600px;
+  margin: 0 auto 1rem;
+  font-size: clamp(1.05rem, 2.5vw, 1.2rem);
+  font-style: italic;
+  color: var(--parchment);
+  line-height: 1.8;
+}
+
+/* ==========================================================================
+   DRESS CODE SECTION
+   ========================================================================== */
+#dress-code {
+  text-align: center;
+}
+
+.dress-code-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem;
+  border: 1px solid rgba(218,165,32,0.2);
+  border-radius: 4px;
+  background: rgba(218,165,32,0.03);
+}
+
+.dress-code-content p {
+  font-size: clamp(1rem, 2.5vw, 1.15rem);
+  color: var(--parchment);
+}
+
+/* -----------------------------------------------------------------------
+   DRESS CODE PLACEHOLDER
+   This is where you can add specific dress code instructions, links,
+   and reference images. Replace the placeholder text and uncomment
+   the example sections below.
+   ----------------------------------------------------------------------- */
+.dress-code-extras {
+  margin-top: 1.5rem;
+}
+
+/*
+   EXAMPLE: Add links like this:
+   <div class="dress-code-extras">
+     <p><a href="https://example.com/inspo" target="_blank">Outfit Inspiration Board</a></p>
+     <div class="dress-code-images">
+       <img src="image1.jpg" alt="Outfit example 1">
+       <img src="image2.jpg" alt="Outfit example 2">
+     </div>
+   </div>
+*/
+
+.dress-code-moodboard {
+  margin-top: 1.5rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(218,165,32,0.25);
+}
+
+.dress-code-moodboard img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.dress-code-note {
+  margin-top: 1.25rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--parchment-dark);
+  font-style: italic;
+}
+
+/* ==========================================================================
+   RSVP SECTION
+   ========================================================================== */
+#rsvp {
+  padding: 3rem 0 4rem;
+}
+
+.rsvp-container {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 2rem;
+  border: 1px solid rgba(218,165,32,0.25);
+  border-radius: 6px;
+  background: rgba(10,10,10,0.6);
+  backdrop-filter: blur(6px);
+}
+
+.rsvp-deadline {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--crimson);
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.rsvp-closed-msg {
+  text-align: center;
+  padding: 2rem 1rem;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  color: var(--parchment-dark);
+  font-style: italic;
+}
+
+/* Form elements */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  margin-bottom: 0.4rem;
+}
+
+.form-group input[type="text"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--cream);
+  background: rgba(26,26,26,0.9);
+  border: 1px solid rgba(218,165,32,0.25);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(218,165,32,0.15);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-group select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='%23DAA520'%3E%3Cpath d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.form-group select option {
+  background: var(--black);
+  color: var(--cream);
+}
+
+/* Couple RSVP layout */
+.couple-rsvp {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 480px) {
+  .couple-rsvp {
+    grid-template-columns: 1fr;
+  }
+}
+
+.couple-member {
+  padding: 1rem;
+  border: 1px solid rgba(218,165,32,0.12);
+  border-radius: 4px;
+  background: rgba(218,165,32,0.02);
+}
+
+.couple-member h3 {
+  text-align: center;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+/* Submit button */
+.btn-submit {
+  display: block;
+  width: 100%;
+  padding: 0.85rem;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--black-deep);
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.3s, opacity 0.3s;
+  position: relative;
+}
+
+.btn-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(218,165,32,0.4);
+}
+
+.btn-submit:active {
+  transform: translateY(0);
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Confirmation overlay */
+.rsvp-confirmation {
+  display: none;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.rsvp-confirmation.show {
+  display: block;
+  animation: fadeSlideUp 0.6s ease forwards;
+}
+
+.rsvp-confirmation .check-mark {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: checkPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.rsvp-confirmation .check-mark svg {
+  width: 30px;
+  height: 30px;
+}
+
+.rsvp-confirmation h3 {
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.rsvp-confirmation p {
+  color: var(--parchment);
+  font-style: italic;
+}
+
+/* Error message */
+.form-error {
+  color: var(--crimson);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  display: none;
+}
+
+.form-error.show {
+  display: block;
+}
+
+/* ==========================================================================
+   CASTLE SILHOUETTE — FOOTER
+   ========================================================================== */
+#footer {
+  text-align: center;
+  padding: 2rem 0 1rem;
+  position: relative;
+}
+
+.castle-silhouette {
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  opacity: 0.15;
+}
+
+.footer-text {
+  font-family: var(--font-heading);
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  opacity: 0.6;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.footer-sub {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--stone-light);
+  font-style: italic;
+}
+
+/* ==========================================================================
+   ORNATE BORDER — TOP/BOTTOM PAGE ACCENTS
+   ========================================================================== */
+.ornate-border-top {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 1rem;
+  display: block;
+  opacity: 0.4;
+}
+
+/* ==========================================================================
+   RESPONSIVE ADJUSTMENTS
+   ========================================================================== */
+@media (max-width: 600px) {
+  section {
+    padding: 2rem 0;
+  }
+
+  .shield-frame {
+    padding: 2rem 1.25rem 1.5rem;
+  }
+
+  .rsvp-container {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .candles-row {
+    gap: 2rem;
+  }
+
+  #seal-overlay .wax-seal {
+    width: 140px;
+    height: 140px;
+  }
+}
+
+/* ==========================================================================
+   UTILITY: SCREEN-READER ONLY
+   ========================================================================== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   TRAITORS LOGO
+   ========================================================================== */
+.traitors-logo-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0 1rem;
+}
+
+.traitors-logo {
+  width: clamp(220px, 55vw, 420px);
+  height: auto;
+  filter: drop-shadow(0 0 20px rgba(218,165,32,0.3));
+}
+
+/* ==========================================================================
+   RSVP BUTTONS (simplified)
+   ========================================================================== */
+.rsvp-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.rsvp-btn {
+  flex: 1;
+  max-width: 220px;
+  padding: 1rem 1.5rem;
+  font-family: var(--font-heading);
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 2px solid var(--gold);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.rsvp-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.rsvp-btn-yes {
+  color: var(--black-deep);
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+}
+
+.rsvp-btn-yes:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 25px rgba(218,165,32,0.5);
+}
+
+.rsvp-btn-no {
+  color: var(--gold);
+  background: transparent;
+}
+
+.rsvp-btn-no:hover {
+  background: rgba(218,165,32,0.1);
+  transform: translateY(-2px);
+}
+
+.rsvp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.rsvp-btn:active {
+  transform: translateY(0);
+}
+
+.rsvp-name-tag {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  color: var(--parchment);
+  font-style: italic;
+  margin-bottom: 0.25rem;
+}
+
+.rsvp-couple-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 480px) {
+  .rsvp-couple-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rsvp-couple-member {
+  text-align: center;
+  padding: 1.25rem 1rem;
+  border: 1px solid rgba(218,165,32,0.15);
+  border-radius: 4px;
+  background: rgba(218,165,32,0.03);
+}
+
+.rsvp-couple-member h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.rsvp-couple-member .rsvp-buttons {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rsvp-couple-member .rsvp-btn {
+  max-width: none;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* --- Faithful / Traitor allegiance step --- */
+.allegiance-step {
+  text-align: center;
+  animation: fadeInUp 0.5s ease;
+}
+
+.allegiance-step .allegiance-question {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 3vw, 1.3rem);
+  color: var(--cream);
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.allegiance-step .allegiance-sub {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--parchment-dark);
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Audio toggle button --- */
+#audio-toggle {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--stone-dark);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s, transform 0.2s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+#audio-toggle:hover {
+  background: var(--stone);
+  transform: scale(1.1);
+}
+#audio-toggle.visible {
+  display: flex;
+}
+</style>
+</head>
+
+<body>
+
+<!-- Background music — direct audio element for reliable mobile playback -->
+<audio id="bg-music" preload="auto" loop>
+  <source src="traitors-theme.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Audio toggle button (appears after seal is opened) -->
+<button id="audio-toggle" aria-label="Toggle music" title="Toggle music">
+  <svg id="audio-icon-on" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+  </svg>
+  <svg id="audio-icon-off" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <line x1="23" y1="9" x2="17" y2="15"/>
+    <line x1="17" y1="9" x2="23" y2="15"/>
+  </svg>
+</button>
+
+<!-- ======================================================================
+     SEAL OVERLAY — Click to "open" the invitation
+     ====================================================================== -->
+<div id="seal-overlay" role="button" tabindex="0" aria-label="Click to open your invitation">
+
+  <!-- Wax Seal SVG — custom shield/dagger design -->
+  <svg class="wax-seal" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <!-- Outer scalloped edge -->
+    <path d="
+      M100 5
+      C108 15, 120 12, 125 5 C130 12, 140 18, 148 12
+      C150 22, 160 25, 168 20 C167 30, 175 38, 182 35
+      C178 45, 185 52, 192 52 C186 60, 190 70, 198 73
+      C190 78, 192 88, 198 95 C190 97, 188 107, 195 113
+      C187 117, 186 127, 192 135 C184 136, 180 145, 185 153
+      C177 152, 170 158, 172 167 C164 163, 156 168, 155 177
+      C149 171, 140 173, 137 182 C132 175, 123 175, 118 182
+      C115 174, 106 174, 100 180
+      C94 174, 85 174, 82 182
+      C77 175, 68 175, 63 182
+      C60 173, 51 171, 45 177
+      C44 168, 36 163, 28 167
+      C30 158, 23 152, 15 153
+      C20 145, 16 136, 8 135
+      C14 127, 13 117, 5 113
+      C12 107, 10 97, 2 95
+      C8 88, 10 78, 2 73
+      C10 70, 14 60, 8 52
+      C15 52, 22 45, 18 35
+      C25 38, 33 30, 32 20
+      C40 25, 50 22, 52 12
+      C60 18, 70 12, 75 5
+      C80 12, 92 15, 100 5Z
+    " fill="#8B0000" stroke="#a01010" stroke-width="1"/>
+
+    <!-- Inner circle -->
+    <circle cx="100" cy="100" r="68" fill="none" stroke="#a01010" stroke-width="2" opacity="0.5"/>
+    <circle cx="100" cy="100" r="62" fill="none" stroke="#c0392b" stroke-width="0.5" opacity="0.3"/>
+
+    <!-- Shield shape -->
+    <path d="M100 45 L135 65 L135 105 Q135 135 100 155 Q65 135 65 105 L65 65 Z"
+          fill="none" stroke="#DAA520" stroke-width="2" opacity="0.8"/>
+
+    <!-- Dagger / sword pointing down -->
+    <line x1="100" y1="55" x2="100" y2="140" stroke="#DAA520" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Crossguard -->
+    <line x1="85" y1="82" x2="115" y2="82" stroke="#DAA520" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Pommel -->
+    <circle cx="100" cy="55" r="4" fill="#DAA520" opacity="0.9"/>
+    <!-- Blade tip -->
+    <path d="M97 135 L100 145 L103 135" fill="#DAA520" opacity="0.8"/>
+
+    <!-- Corner accents -->
+    <circle cx="100" cy="28" r="2" fill="#DAA520" opacity="0.5"/>
+    <circle cx="100" cy="172" r="2" fill="#DAA520" opacity="0.5"/>
+    <circle cx="28" cy="100" r="2" fill="#DAA520" opacity="0.5"/>
+    <circle cx="172" cy="100" r="2" fill="#DAA520" opacity="0.5"/>
+  </svg>
+
+  <p class="seal-prompt">Break the seal</p>
+</div>
+
+
+<!-- ======================================================================
+     MAIN CONTENT
+     ====================================================================== -->
+<main id="main-content">
+<div class="container">
+
+  <!-- ================================================================
+       HERO — PERSONALIZED GREETING
+       ================================================================ -->
+  <section id="hero">
+    <!-- Ornate top border SVG -->
+    <svg class="ornate-border-top" viewBox="0 0 400 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <line x1="0" y1="15" x2="160" y2="15" stroke="#DAA520" stroke-width="0.5" opacity="0.6"/>
+      <line x1="240" y1="15" x2="400" y2="15" stroke="#DAA520" stroke-width="0.5" opacity="0.6"/>
+      <path d="M170 15 Q185 5 200 15 Q215 25 230 15" fill="none" stroke="#DAA520" stroke-width="1" opacity="0.6"/>
+      <circle cx="200" cy="15" r="2" fill="#DAA520" opacity="0.6"/>
+    </svg>
+
+    <!-- Traitors Logo -->
+    <div class="traitors-logo-wrapper">
+      <img class="traitors-logo" src="traitors-logo.png" alt="The Traitors">
+    </div>
+
+    <p class="summoned-text">You have been summoned to the roundtable&hellip;</p>
+
+    <h1 class="guest-name" id="guest-name">Honored Guest</h1>
+
+    <p class="hero-subtitle">Your presence is requested for a game of Traitors&hellip;</p>
+
+    <!-- Candles -->
+    <div class="candles-row" aria-hidden="true">
+      <div class="candle-wrapper">
+        <div class="candle-flame"><div class="flame-inner"></div><div class="flame-glow"></div></div>
+        <div class="candle-wick"></div>
+        <div class="candle-body"></div>
+      </div>
+      <div class="candle-wrapper">
+        <div class="candle-flame"><div class="flame-inner"></div><div class="flame-glow"></div></div>
+        <div class="candle-wick"></div>
+        <div class="candle-body"></div>
+      </div>
+      <div class="candle-wrapper">
+        <div class="candle-flame"><div class="flame-inner"></div><div class="flame-glow"></div></div>
+        <div class="candle-wick"></div>
+        <div class="candle-body"></div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       DAGGER DIVIDER
+       ================================================================ -->
+  <div class="dagger-divider reveal" aria-hidden="true">
+    <span class="line"></span>
+    <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <!-- Crossed daggers -->
+      <line x1="8" y1="8" x2="32" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="32" y1="8" x2="8" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Crossguards -->
+      <line x1="5" y1="13" x2="13" y2="5" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="27" y1="5" x2="35" y2="13" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- Pommels -->
+      <circle cx="7" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+      <circle cx="33" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+    </svg>
+    <span class="line"></span>
+  </div>
+
+
+  <!-- ================================================================
+       PARTY DETAILS — INSIDE A SHIELD FRAME
+       ================================================================ -->
+  <section id="details" class="reveal">
+    <h2 style="text-align:center; margin-bottom: 1.5rem;">The Gathering</h2>
+
+    <div class="shield-frame">
+      <!-- Shield background SVG -->
+      <svg class="shield-bg" viewBox="0 0 400 480" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="rgba(218,165,32,0.08)"/>
+            <stop offset="100%" stop-color="rgba(218,165,32,0.02)"/>
+          </linearGradient>
+        </defs>
+        <path d="M200 10 L380 60 L380 280 Q380 420 200 470 Q20 420 20 280 L20 60 Z"
+              fill="url(#shieldGrad)" stroke="#DAA520" stroke-width="1.5" opacity="0.5"/>
+        <path d="M200 25 L365 70 L365 275 Q365 405 200 455 Q35 405 35 275 L35 70 Z"
+              fill="none" stroke="#DAA520" stroke-width="0.5" opacity="0.25"/>
+      </svg>
+
+      <div class="detail-item">
+        <span class="detail-label">Celebrating</span>
+        <span class="detail-value">Jazzy's 25th Birthday</span>
+      </div>
+
+      <div class="detail-item">
+        <span class="detail-label">Date</span>
+        <span class="detail-value">Saturday, May 2nd, 2026</span>
+      </div>
+
+      <div class="detail-item">
+        <span class="detail-label">Time</span>
+        <span class="detail-value">5:00 PM</span>
+      </div>
+
+      <div class="detail-item">
+        <span class="detail-label">Location</span>
+        <span class="detail-value">
+          <a href="https://www.google.com/maps/search/?api=1&query=6704+E+102nd+St+Tulsa+OK+74133"
+             target="_blank" rel="noopener noreferrer">
+            6704 E 102nd St<br>Tulsa, OK 74133
+          </a>
+        </span>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       DAGGER DIVIDER
+       ================================================================ -->
+  <div class="dagger-divider reveal" aria-hidden="true">
+    <span class="line"></span>
+    <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <line x1="8" y1="8" x2="32" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="32" y1="8" x2="8" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="5" y1="13" x2="13" y2="5" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="27" y1="5" x2="35" y2="13" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="7" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+      <circle cx="33" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+    </svg>
+    <span class="line"></span>
+  </div>
+
+
+  <!-- ================================================================
+       THE MISSION
+       ================================================================ -->
+  <section id="mission" class="reveal">
+    <h2>The Mission</h2>
+    <p>
+      You are cordially summoned to Jazzy's 25th birthday — a night where
+      loyalty will be tested and alliances will crumble.
+    </p>
+    <p style="margin-top: 1rem; font-size: 1.15em; color: var(--gold-bright);">
+      We will be playing The Traitors.
+    </p>
+    <p style="margin-top: 0.75rem;">
+      Faithfuls must root out the Traitors before it's too late.
+      Traitors must deceive, manipulate, and survive.
+      Trust no one. Suspect everyone. And above all&hellip;
+      come ready to play.
+    </p>
+  </section>
+
+
+  <!-- ================================================================
+       DAGGER DIVIDER
+       ================================================================ -->
+  <div class="dagger-divider reveal" aria-hidden="true">
+    <span class="line"></span>
+    <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <line x1="8" y1="8" x2="32" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="32" y1="8" x2="8" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="5" y1="13" x2="13" y2="5" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="27" y1="5" x2="35" y2="13" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="7" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+      <circle cx="33" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+    </svg>
+    <span class="line"></span>
+  </div>
+
+
+  <!-- ================================================================
+       DRESS CODE
+       ================================================================ -->
+  <section id="dress-code" class="reveal">
+    <h2>Attire</h2>
+
+    <div class="dress-code-content">
+      <p>Dark, elegant, and moody &mdash; dress like you belong in a Scottish castle.</p>
+
+      <div class="dress-code-moodboard">
+        <img src="dresscode-moodboard.jpeg" alt="Dress code mood board — dark elegant formal wear inspiration">
+      </div>
+
+      <p class="dress-code-note">Guys &mdash; you&rsquo;re welcome to dress up too, but don&rsquo;t stress it.</p>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       DAGGER DIVIDER
+       ================================================================ -->
+  <div class="dagger-divider reveal" aria-hidden="true">
+    <span class="line"></span>
+    <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <line x1="8" y1="8" x2="32" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="32" y1="8" x2="8" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="5" y1="13" x2="13" y2="5" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="27" y1="5" x2="35" y2="13" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="7" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+      <circle cx="33" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+    </svg>
+    <span class="line"></span>
+  </div>
+
+
+  <!-- ================================================================
+       RSVP SECTION
+       ================================================================ -->
+  <section id="rsvp" class="reveal">
+    <h2 style="text-align:center; margin-bottom: 1.5rem;">Declare Your Allegiance</h2>
+
+    <div class="rsvp-container">
+      <p class="rsvp-deadline">RSVP by April 25th, 2026</p>
+
+      <!-- RSVP buttons — built dynamically by JS -->
+      <div id="rsvp-buttons-area"></div>
+
+      <!-- Faithful/Traitor rhetorical moment (shown after clicking yes) -->
+      <div id="allegiance-step" class="allegiance-step" style="display:none;">
+        <p class="allegiance-question">But the real question is&hellip;</p>
+        <p class="allegiance-sub">Will you be a faithful ally&hellip; or a conniving traitor?</p>
+        <p class="allegiance-sub" style="color: var(--gold); font-style: normal; margin-top: 1rem; font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--font-heading);">Only time will tell&hellip;</p>
+      </div>
+
+      <!-- Confirmation (shown after clicking) -->
+      <div class="rsvp-confirmation" id="rsvp-confirmation">
+        <div class="check-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h3 id="confirmation-heading">Your Allegiance Has Been Sealed</h3>
+        <p id="confirmation-message">We look forward to seeing you at the roundtable.</p>
+      </div>
+
+      <!-- RSVP Closed message -->
+      <div class="rsvp-closed-msg" id="rsvp-closed" style="display:none;">
+        RSVPs are now closed. If you need to reach the host, send a raven&hellip; or a text.
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       JOIN THE GAME BUTTON
+       ================================================================ -->
+  <section class="reveal" style="text-align: center; padding: 2rem 1rem;">
+    <a href="/jazzys25th/play"
+       style="display: inline-block; font-family: var(--font-heading); font-size: 1.1rem;
+              letter-spacing: 3px; text-transform: uppercase; color: var(--black-deep);
+              background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+              padding: 15px 40px; border-radius: 6px; text-decoration: none;
+              box-shadow: 0 4px 20px rgba(218,165,32,0.3); transition: all 0.3s ease;">
+      Join the Game
+    </a>
+  </section>
+
+  <!-- ================================================================
+       FOOTER — CASTLE SILHOUETTE
+       ================================================================ -->
+  <footer id="footer">
+    <!-- Castle Silhouette SVG -->
+    <svg class="castle-silhouette" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="
+        M0 200
+        L0 160 L20 160 L20 140 L30 140 L30 160 L50 160
+        L50 130 L55 130 L55 110 L60 110 L60 130 L65 130 L65 160
+        L90 160 L90 120 L100 100 L110 120 L110 160
+        L140 160 L140 130 L150 130 L150 100 L155 85 L160 100 L160 130 L170 130 L170 160
+        L200 160 L200 140 L210 140 L210 120 L215 120 L215 90 L220 90 L220 70 L230 50 L240 70 L240 90 L245 90 L245 120 L250 120 L250 140 L260 140 L260 160
+        L290 160 L290 140 L300 140 L300 120 L310 120 L310 140 L320 140 L320 160
+        L360 160 L360 110 L370 80 L375 60 L380 40 L385 60 L390 80 L400 110 L400 160
+        L440 160 L440 140 L450 140 L450 120 L460 120 L460 140 L470 140 L470 160
+        L500 160 L500 140 L510 140 L510 120 L515 120 L515 90 L520 90 L520 70 L530 50 L540 70 L540 90 L545 90 L545 120 L550 120 L550 140 L560 140 L560 160
+        L590 160 L590 130 L600 130 L600 100 L605 85 L610 100 L610 130 L620 130 L620 160
+        L650 160 L650 120 L660 100 L670 120 L670 160
+        L700 160 L700 130 L705 130 L705 110 L710 110 L710 130 L715 130 L715 160
+        L740 160 L740 140 L750 140 L750 160 L770 160
+        L770 140 L780 140 L780 160
+        L800 160 L800 200 Z
+      " fill="#DAA520"/>
+      <!-- Windows -->
+      <rect x="224" y="78" width="12" height="16" rx="6" fill="#0A0A0A" opacity="0.5"/>
+      <rect x="524" y="78" width="12" height="16" rx="6" fill="#0A0A0A" opacity="0.5"/>
+      <rect x="375" y="70" width="10" height="14" rx="5" fill="#0A0A0A" opacity="0.5"/>
+      <rect x="375" y="100" width="10" height="14" rx="5" fill="#0A0A0A" opacity="0.5"/>
+    </svg>
+
+    <!-- Dagger decoration -->
+    <div class="dagger-divider" style="margin-top: 0.5rem;" aria-hidden="true">
+      <span class="line"></span>
+      <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <line x1="8" y1="8" x2="32" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="32" y1="8" x2="8" y2="32" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="5" y1="13" x2="13" y2="5" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="27" y1="5" x2="35" y2="13" stroke="#DAA520" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="7" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+        <circle cx="33" cy="7" r="2" fill="#DAA520" opacity="0.7"/>
+      </svg>
+      <span class="line"></span>
+    </div>
+
+    <p class="footer-text">Trust No One. Suspect Everyone.</p>
+    <p class="footer-sub">A celebration of mystery &amp; mischief for Jazzy's 25th</p>
+  </footer>
+
+</div>
+</main>
+
+
+<!-- ========================================================================
+     JAVASCRIPT
+     ======================================================================== -->
+<script>
+(function() {
+  'use strict';
+
+  /* ======================================================================
+     CONFIGURATION
+     ====================================================================== */
+
+  // ----- Google Apps Script Web App URL -----
+  // Replace this with your deployed Google Apps Script web app URL
+  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzHj6UMI9f4XOlv5ugQ5NjvE96kcEL6i7nZSNhnZCY71jbDLYuR5dLZF1Pyx7kF8ihh/exec';
+
+  // ----- RSVP Deadline -----
+  // April 25, 2026, end of day (Central Time approximation — 11:59 PM)
+  const RSVP_DEADLINE = new Date('2026-04-26T04:59:00Z'); // April 25th 11:59 PM CT
+
+  // ----- Guest List -----
+  const GUESTS = {
+    'jack': {
+      type: 'solo',
+      names: ['Jack'],
+      greeting: 'Jack'
+    },
+    'keegan-gavin': {
+      type: 'couple',
+      names: ['Keegan', 'Gavin'],
+      greeting: 'Keegan & Gavin'
+    },
+    'chandler-josh': {
+      type: 'couple',
+      names: ['Chandler', 'Josh'],
+      greeting: 'Chandler & Josh'
+    },
+    'gaige-shelley': {
+      type: 'couple',
+      names: ['Gaige', 'Shelley'],
+      greeting: 'Gaige & Shelley'
+    },
+    'david-hailie': {
+      type: 'couple',
+      names: ['David', 'Hailie'],
+      greeting: 'David & Hailie'
+    },
+    'gunnar-natalia': {
+      type: 'couple',
+      names: ['Gunnar', 'Natalia'],
+      greeting: 'Gunnar & Natalia'
+    },
+    'ryan-bailey': {
+      type: 'couple',
+      names: ['Ryan', 'Bailey'],
+      greeting: 'Ryan & Bailey'
+    },
+    'aubrey-aaron': {
+      type: 'couple',
+      names: ['Aubrey', 'Aaron'],
+      greeting: 'Aubrey & Aaron'
+    },
+    'isabel': {
+      type: 'solo',
+      names: ['Isabel'],
+      greeting: 'Isabel'
+    },
+    'tatum': {
+      type: 'solo',
+      names: ['Tatum'],
+      greeting: 'Tatum'
+    },
+    'sydney-dean': {
+      type: 'couple',
+      names: ['Sydney', 'Dean'],
+      greeting: 'Sydney & Dean'
+    },
+    'carson-landon': {
+      type: 'couple',
+      names: ['Carson', 'Landon'],
+      greeting: 'Carson & Landon'
+    },
+    'ellie-eryn': {
+      type: 'couple',
+      names: ['Ellie', 'Eryn'],
+      greeting: 'Ellie & Eryn'
+    },
+    'katie': {
+      type: 'solo',
+      names: ['Katie'],
+      greeting: 'Katie'
+    },
+    'isabelle': {
+      type: 'solo',
+      names: ['Isabelle'],
+      greeting: 'Isabelle'
+    },
+    'braxton': {
+      type: 'solo',
+      names: ['Braxton'],
+      greeting: 'Braxton'
+    },
+    'isaac-morghan': {
+      type: 'couple',
+      names: ['Isaac', 'Morghan'],
+      greeting: 'Isaac & Morghan'
+    },
+    'fred': {
+      type: 'solo',
+      names: ['Fred'],
+      greeting: 'Fred'
+    },
+    'chloe-cole': {
+      type: 'couple',
+      names: ['Chloe', 'Cole'],
+      greeting: 'Chloe & Cole'
+    }
+  };
+
+
+  /* ======================================================================
+     PARSE INVITE FROM URL
+     ====================================================================== */
+  const params = new URLSearchParams(window.location.search);
+  const inviteId = (params.get('invite') || '').toLowerCase().trim();
+  const guest = GUESTS[inviteId] || null;
+
+
+  /* ======================================================================
+     PERSONALIZE GREETING
+     ====================================================================== */
+  const guestNameEl = document.getElementById('guest-name');
+
+  if (guest) {
+    guestNameEl.textContent = guest.greeting;
+  } else {
+    // Generic / unknown invite
+    guestNameEl.textContent = 'Honored Guest';
+  }
+
+
+  /* ======================================================================
+     SEAL OVERLAY — OPEN ANIMATION
+     ====================================================================== */
+  const sealOverlay = document.getElementById('seal-overlay');
+  const heroSection = document.getElementById('hero');
+
+  // Direct audio element for reliable mobile playback
+  var bgMusic = document.getElementById('bg-music');
+
+  function openSeal() {
+    sealOverlay.classList.add('opened');
+    heroSection.classList.add('visible');
+    document.body.style.overflow = '';
+
+    // Play music — called directly in click handler so mobile browsers allow it
+    if (bgMusic) {
+      bgMusic.play().catch(function() { /* autoplay blocked, user can toggle */ });
+    }
+    var audioBtn = document.getElementById('audio-toggle');
+    audioBtn.classList.add('visible');
+  }
+
+  // Prevent scrolling while seal is showing
+  document.body.style.overflow = 'hidden';
+
+  sealOverlay.addEventListener('click', openSeal);
+  sealOverlay.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openSeal();
+    }
+  });
+
+
+  /* ======================================================================
+     SCROLL-TRIGGERED REVEAL ANIMATIONS
+     ====================================================================== */
+  const revealElements = document.querySelectorAll('.reveal');
+
+  const revealObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, {
+    threshold: 0.15,
+    rootMargin: '0px 0px -40px 0px'
+  });
+
+  revealElements.forEach(function(el) {
+    revealObserver.observe(el);
+  });
+
+
+  /* ======================================================================
+     RSVP — TWO-BUTTON SYSTEM + FAITHFUL/TRAITOR ALLEGIANCE
+     ====================================================================== */
+  const rsvpArea = document.getElementById('rsvp-buttons-area');
+  const rsvpConfirmation = document.getElementById('rsvp-confirmation');
+  const rsvpClosed = document.getElementById('rsvp-closed');
+  const allegianceStep = document.getElementById('allegiance-step');
+  const confirmationMessage = document.getElementById('confirmation-message');
+  const confirmationHeading = document.getElementById('confirmation-heading');
+
+  const now = new Date();
+  const isPastDeadline = now > RSVP_DEADLINE;
+
+  // Pending payload stored here while user picks faithful/traitor
+  var pendingPayload = null;
+
+  if (isPastDeadline) {
+    rsvpArea.style.display = 'none';
+    rsvpClosed.style.display = 'block';
+    document.querySelector('.rsvp-deadline').textContent = 'RSVPs ARE NOW CLOSED';
+    document.querySelector('.rsvp-deadline').style.color = 'var(--stone-light)';
+  } else {
+    buildRSVPButtons();
+  }
+
+  function buildRSVPButtons() {
+    if (guest && guest.type === 'couple') {
+      var grid = document.createElement('div');
+      grid.className = 'rsvp-couple-grid';
+
+      guest.names.forEach(function(name, index) {
+        var member = document.createElement('div');
+        member.className = 'rsvp-couple-member';
+        member.setAttribute('data-name', name);
+        member.setAttribute('data-index', index);
+        member.innerHTML =
+          '<h3>' + escapeHtml(name) + '</h3>' +
+          '<div class="rsvp-buttons">' +
+            '<button class="rsvp-btn rsvp-btn-yes" data-response="yes" data-name="' + escapeHtml(name) + '">I\'ll Be There</button>' +
+            '<button class="rsvp-btn rsvp-btn-no" data-response="no" data-name="' + escapeHtml(name) + '">Can\'t Make It</button>' +
+          '</div>';
+        grid.appendChild(member);
+      });
+
+      rsvpArea.appendChild(grid);
+
+      var coupleResponses = {};
+      rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var name = this.getAttribute('data-name');
+          var response = this.getAttribute('data-response');
+          coupleResponses[name] = response;
+
+          var parentMember = this.closest('.rsvp-couple-member');
+          parentMember.querySelectorAll('.rsvp-btn').forEach(function(b) { b.disabled = true; });
+
+          if (response === 'yes') {
+            this.style.boxShadow = '0 0 20px rgba(218,165,32,0.6)';
+          } else {
+            this.style.background = 'rgba(139,0,0,0.3)';
+            this.style.borderColor = 'var(--crimson)';
+            this.style.color = 'var(--crimson)';
+          }
+
+          if (Object.keys(coupleResponses).length === guest.names.length) {
+            var payload = {
+              inviteId: inviteId,
+              timestamp: new Date().toISOString(),
+              type: 'couple',
+              name1: guest.names[0],
+              attending1: coupleResponses[guest.names[0]],
+              name2: guest.names[1],
+              attending2: coupleResponses[guest.names[1]]
+            };
+            var anyYes = payload.attending1 === 'yes' || payload.attending2 === 'yes';
+            if (anyYes) {
+              showAllegianceStep(payload);
+            } else {
+              submitRSVP(payload);
+            }
+          }
+        });
+      });
+
+    } else {
+      var name = guest ? guest.names[0] : 'Guest';
+      if (guest) {
+        rsvpArea.innerHTML =
+          '<p class="rsvp-name-tag">Will you be joining us, ' + escapeHtml(name) + '?</p>';
+      }
+      rsvpArea.innerHTML +=
+        '<div class="rsvp-buttons">' +
+          '<button class="rsvp-btn rsvp-btn-yes" data-response="yes">I\'ll Be There</button>' +
+          '<button class="rsvp-btn rsvp-btn-no" data-response="no">Can\'t Make It</button>' +
+        '</div>';
+
+      rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var response = this.getAttribute('data-response');
+          rsvpArea.querySelectorAll('.rsvp-btn').forEach(function(b) { b.disabled = true; });
+
+          var payload = {
+            inviteId: inviteId || 'unknown',
+            timestamp: new Date().toISOString(),
+            type: guest ? 'solo' : 'unknown',
+            name1: guest ? guest.names[0] : 'Unknown Guest',
+            attending1: response
+          };
+
+          if (response === 'yes') {
+            showAllegianceStep(payload);
+          } else {
+            submitRSVP(payload);
+          }
+        });
+      });
+    }
+  }
+
+  // Show the "Faithful or Traitor?" rhetorical moment, then auto-submit
+  function showAllegianceStep(payload) {
+    pendingPayload = payload;
+    rsvpArea.style.display = 'none';
+    document.querySelector('.rsvp-deadline').style.display = 'none';
+    allegianceStep.style.display = 'block';
+
+    // Let the dramatic text linger, then auto-proceed to confirmation
+    setTimeout(function() {
+      allegianceStep.style.display = 'none';
+      submitRSVP(pendingPayload);
+    }, 3000);
+  }
+
+  function submitRSVP(payload) {
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function() {
+      showConfirmation(payload);
+    })
+    .catch(function(err) {
+      console.error('RSVP submission error:', err);
+      showConfirmation(payload);
+    });
+  }
+
+  function showConfirmation(payload) {
+    rsvpArea.style.display = 'none';
+    allegianceStep.style.display = 'none';
+    document.querySelector('.rsvp-deadline').style.display = 'none';
+    rsvpConfirmation.classList.add('show');
+
+    var anyYes = payload.attending1 === 'yes' || (payload.attending2 && payload.attending2 === 'yes');
+    if (anyYes) {
+      confirmationHeading.textContent = 'Your Allegiance Has Been Sealed';
+      confirmationMessage.textContent = 'We look forward to seeing you at the roundtable.';
+    } else {
+      confirmationHeading.textContent = 'Your Response Has Been Noted';
+      confirmationMessage.textContent = 'You will be missed. The roundtable will not be the same without you.';
+    }
+  }
+
+
+  /* ======================================================================
+     UTILITY
+     ====================================================================== */
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+
+  /* ======================================================================
+     AUDIO TOGGLE
+     ====================================================================== */
+  var audioPlaying = true;
+  var audioToggleBtn = document.getElementById('audio-toggle');
+  var iconOn = document.getElementById('audio-icon-on');
+  var iconOff = document.getElementById('audio-icon-off');
+
+  audioToggleBtn.addEventListener('click', function() {
+    if (bgMusic) {
+      if (audioPlaying) {
+        bgMusic.pause();
+        iconOn.style.display = 'none';
+        iconOff.style.display = 'block';
+      } else {
+        bgMusic.play().catch(function() {});
+        iconOn.style.display = 'block';
+        iconOff.style.display = 'none';
+      }
+    }
+    audioPlaying = !audioPlaying;
+  });
+
+})();
+</script>
+
+</body>
+</html>

@@ -118,8 +118,8 @@ export default function VotingScreen({ playerName, alivePlayers, votes, timerEnd
 
       {/* Role + Shield indicators */}
       <div style={{ position: 'fixed', bottom: 20, left: 0, right: 0, textAlign: 'center' }}>
-        <span className={`role-badge ${isTraitor ? 'traitor' : 'faithful'}`}>
-          {isTraitor ? '🗡️ Traitor' : '✨ Faithful'}
+        <span className="role-badge faithful">
+          {isTraitor ? 'Traitor' : 'Faithful'}
         </span>
         {hasShield && (
           <span className="role-badge faithful" style={{ marginLeft: 8 }}>🛡️ Shield</span>

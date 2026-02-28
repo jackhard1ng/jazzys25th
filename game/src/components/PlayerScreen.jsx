@@ -184,7 +184,7 @@ export default function PlayerScreen() {
       <div className="player-screen" style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         background: showRole
-          ? (isTraitor ? 'radial-gradient(ellipse at center, rgba(139,0,0,0.3), var(--black))' : 'radial-gradient(ellipse at center, rgba(212,175,55,0.15), var(--black))')
+          ? 'radial-gradient(ellipse at center, rgba(212,175,55,0.15), var(--black))'
           : 'var(--black)',
         transition: 'background 1s ease',
       }}>
@@ -214,24 +214,22 @@ export default function PlayerScreen() {
             <div style={{
               fontFamily: 'var(--font-display)',
               fontSize: '3rem',
-              color: isTraitor ? 'var(--crimson-light)' : 'var(--gold)',
+              color: 'var(--gold)',
               letterSpacing: 6,
-              textShadow: isTraitor
-                ? '0 0 30px rgba(139,0,0,0.8)'
-                : '0 0 30px rgba(212,175,55,0.6)',
+              textShadow: '0 0 30px rgba(212,175,55,0.6)',
               marginBottom: 20,
             }}>
               {isTraitor ? 'TRAITOR' : 'FAITHFUL'}
             </div>
 
             {isTraitor && (
-              <div className="panel panel-crimson" style={{ maxWidth: 300, margin: '20px auto', textAlign: 'left' }}>
-                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.85rem', color: 'var(--crimson-light)', letterSpacing: 1, marginBottom: 8 }}>
+              <div className="panel" style={{ maxWidth: 300, margin: '20px auto', textAlign: 'left' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.85rem', color: 'var(--gold)', letterSpacing: 1, marginBottom: 8 }}>
                   YOUR FELLOW TRAITORS:
                 </div>
                 {playerList.filter(p => p.role === 'traitor' && p.name !== playerName).map(p => (
                   <div key={p.name} style={{ padding: '4px 0', color: 'var(--text)', fontFamily: 'var(--font-heading)', letterSpacing: 1 }}>
-                    🗡️ {p.name}
+                    {p.name}
                   </div>
                 ))}
               </div>
@@ -286,7 +284,7 @@ export default function PlayerScreen() {
               A SHIELD WAS PLAYED
             </div>
             <p style={{ color: 'var(--text-dim)', marginTop: 15, fontSize: '1.2rem' }}>
-              No one was murdered tonight.
+              No one was murdered.
             </p>
           </div>
         ) : murderTarget ? (
@@ -298,7 +296,7 @@ export default function PlayerScreen() {
               letterSpacing: 3,
               marginBottom: 20,
             }}>
-              Last night, the traitors struck...
+              The traitors have struck...
             </div>
             <div style={{
               fontFamily: 'var(--font-display)',
@@ -323,7 +321,7 @@ export default function PlayerScreen() {
         ) : (
           <div className="fade-in" style={{ textAlign: 'center' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-dim)', letterSpacing: 3 }}>
-              No one was murdered tonight.
+              No one was murdered.
             </div>
           </div>
         )}
@@ -362,8 +360,8 @@ export default function PlayerScreen() {
           </div>
         )}
         <div style={{ marginTop: 20 }}>
-          <span className={`role-badge ${isTraitor ? 'traitor' : 'faithful'}`}>
-            {isTraitor ? '🗡️ Traitor' : '✨ Faithful'}
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
           </span>
         </div>
       </div>
@@ -391,8 +389,8 @@ export default function PlayerScreen() {
         </p>
         <Timer timerEnd={timerEnd} />
         <div style={{ marginTop: 20 }}>
-          <span className={`role-badge ${isTraitor ? 'traitor' : 'faithful'}`}>
-            {isTraitor ? '🗡️ Traitor' : '✨ Faithful'}
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
           </span>
         </div>
         {player?.shield && (
@@ -486,8 +484,8 @@ export default function PlayerScreen() {
           Waiting for the next round...
         </p>
         <div style={{ marginTop: 20 }}>
-          <span className={`role-badge ${isTraitor ? 'traitor' : 'faithful'}`}>
-            {isTraitor ? '🗡️ Traitor' : '✨ Faithful'}
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
           </span>
         </div>
         {player?.shield && (
@@ -541,8 +539,8 @@ export default function PlayerScreen() {
         )}
 
         <div style={{ marginTop: 20 }}>
-          <span className={`role-badge ${isTraitor ? 'traitor' : 'faithful'}`}>
-            You were: {isTraitor ? '🗡️ TRAITOR' : '✨ FAITHFUL'}
+          <span className="role-badge faithful">
+            You were: {isTraitor ? 'TRAITOR' : 'FAITHFUL'}
           </span>
         </div>
 

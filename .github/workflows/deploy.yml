@@ -34,6 +34,15 @@ jobs:
         working-directory: game
         run: npm run build
 
+      - name: Verify build output
+        run: |
+          echo "=== dist contents ==="
+          ls -la game/dist/
+          echo "=== Checking index.html is invite page ==="
+          head -5 game/dist/index.html
+          echo "=== Checking game.html is React app ==="
+          head -5 game/dist/game.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
