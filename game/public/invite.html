@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+// SPA route forwarder: if the URL has ?/path format (from 404.html redirect), forward to game.html
+if(window.location.search && window.location.search[1]==="/"){
+  window.location.replace("/jazzys25th/game.html"+window.location.search+window.location.hash);
+}
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>You Have Been Summoned — Jazzy's 25th Birthday</title>
