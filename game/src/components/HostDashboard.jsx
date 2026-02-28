@@ -114,6 +114,20 @@ export default function HostDashboard() {
     await updateGameState({ phase: 'roleReveal', round: 1 });
   }
 
+  // Start a new day — begins with the challenge (shield opportunity)
+  async function handleStartDay() {
+    await clearVotes();
+    await clearTraitorChat();
+    await set(ref(db, 'game/murderVotes'), {});
+    await updateGameState({
+      phase: 'challenge',
+      murderTarget: null,
+      banishedPlayer: null,
+      shieldBlocked: false,
+      currentScrollIndex: -1,
+    });
+  }
+
   async function handleStartNight() {
     // Generate prompts for this round
     const prompts = selectPrompts(config.promptsPerRound, usedPrompts);
@@ -127,15 +141,8 @@ export default function HostDashboard() {
       prompts: prompts.map(p => ({ text: p.text, isGame: p.isGame })),
     });
 
-    await clearVotes();
-    await clearTraitorChat();
-    await set(ref(db, 'game/murderVotes'), {});
     await updateGameState({
       phase: 'night',
-      murderTarget: null,
-      banishedPlayer: null,
-      shieldBlocked: false,
-      currentScrollIndex: -1,
     });
     await startTimer(config.nightDuration);
   }
@@ -144,31 +151,28 @@ export default function HostDashboard() {
     await clearTimer();
     await set(ref(db, 'game/nightPhase'), { active: false, prompts: [] });
 
-    // Determine murder target from traitor votes (majority)
+    // Determine murder target from traitor votes
+    // On the show, traitors must reach UNANIMOUS agreement — if they split votes, no murder
     const tally = {};
     Object.values(murderVotes).forEach(v => {
       tally[v.target] = (tally[v.target] || 0) + 1;
     });
 
     let target = null;
-    let maxCount = 0;
-    Object.entries(tally).forEach(([name, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        target = name;
-      }
-    });
+    const targets = Object.keys(tally);
+    if (targets.length === 1) {
+      // All traitors who voted agreed on the same person
+      target = targets[0];
+    }
+    // If traitors voted for different people, no murder happens
 
-    // Store murder target but don't apply yet — murder reveal comes after roundtable
+    // Store murder target but don't apply yet — murder reveal comes after banishment
     await updateGameState({
-      phase: 'challenge',
+      phase: 'roundtable',
       murderTarget: target || null,
       shieldBlocked: false,
+      currentScrollIndex: -1,
     });
-  }
-
-  async function handleAdvanceToChallenge() {
-    await updateGameState({ phase: 'challenge' });
   }
 
   async function handleAdvanceToRoundtable() {
@@ -205,14 +209,10 @@ export default function HostDashboard() {
   async function handleConfirmBanishment() {
     const name = banishedPlayer;
     if (!name) return;
-    // Auto-detect role from Firebase — host never needs to know
-    const snap = await get(playersRef);
-    const currentPlayers = snap.val() || {};
-    const role = currentPlayers[name]?.role || 'faithful';
+    // On The Traitors show, banished players do NOT reveal their role
     await updatePlayerStatus(name, 'banished');
-    setRevealedRoles(prev => ({ ...prev, [name]: role }));
 
-    // Apply the murder now (murder reveal comes after banishment)
+    // Move to murder phase — apply the traitors' kill
     let shieldWasBlocked = false;
     if (murderTarget) {
       const snap = await get(playersRef);
@@ -235,7 +235,7 @@ export default function HostDashboard() {
 
   async function handleNextRound() {
     await updateGameState({ round: round + 1 });
-    handleStartNight();
+    handleStartDay();
   }
 
   async function handleAwardShield(playerName) {
@@ -270,7 +270,7 @@ export default function HostDashboard() {
   }
 
   // ============================================================
-  // ADVANCE AFTER MURDER REVEAL — check win conditions
+  // ADVANCE AFTER MURDER REVEAL — check win conditions & finale trigger
   // ============================================================
   async function handleAdvanceAfterMurder() {
     const snap = await get(playersRef);
@@ -283,8 +283,87 @@ export default function HostDashboard() {
       await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
     } else if (aliveT.length >= aliveF.length) {
       await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
+    } else if (alive.length <= (config.finaleThreshold || 5)) {
+      // Trigger the finale — like on the TV show
+      await updateGameState({ phase: 'finale_roundtable' });
     } else {
       await updateGameState({ phase: 'lobby_between_rounds' });
+    }
+  }
+
+  // ============================================================
+  // FINALE FLOW — mirrors The Traitors TV show endgame
+  // ============================================================
+
+  // Finale roundtable → vote to banish (no role reveal)
+  async function handleFinaleStartVoting() {
+    await clearVotes();
+    await updateGameState({ phase: 'finale_voting' });
+    await startTimer(90);
+  }
+
+  // Finale reveal votes and banish
+  async function handleFinaleRevealVotes() {
+    await clearTimer();
+    if (voteTally.length > 0 && voteTally[0][1] > 0) {
+      await updateGameState({
+        phase: 'finale_banishment',
+        banishedPlayer: voteTally[0][0],
+      });
+    }
+  }
+
+  // Finale banishment confirmed — no role reveal, move to decision phase
+  async function handleFinaleBanishment() {
+    const name = banishedPlayer;
+    if (!name) return;
+    await updatePlayerStatus(name, 'banished');
+
+    // Check win conditions and auto-end at 2 players
+    const snap = await get(playersRef);
+    const updatedPlayers = snap.val() || {};
+    const alive = Object.values(updatedPlayers).filter(p => p.status === 'alive');
+    const aliveT = alive.filter(p => p.role === 'traitor');
+    const aliveF = alive.filter(p => p.role === 'faithful');
+
+    if (aliveT.length === 0) {
+      await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
+    } else if (aliveT.length >= aliveF.length) {
+      await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
+    } else if (alive.length <= 2) {
+      // Only 2 players left — game auto-ends (like the TV show)
+      await updateGameState({ phase: 'endgame', winCondition: aliveT.length > 0 ? 'traitors' : 'faithful' });
+    } else {
+      // Move to the "do you think there are still traitors?" decision
+      await clearVotes();
+      await updateGameState({ phase: 'finale_decision', banishedPlayer: null });
+    }
+  }
+
+  // Players have voted on whether traitors remain
+  // If ANY player votes "still traitors" → another finale vote
+  // If ALL vote "all faithful" → reveal and determine winner
+  async function handleFinaleDecisionResult() {
+    const voteValues = Object.values(votes);
+    const anyThinkTraitors = voteValues.some(v => v.target === 'still_traitors');
+
+    if (anyThinkTraitors) {
+      // At least one person thinks there's a traitor — vote again
+      await clearVotes();
+      await updateGameState({ phase: 'finale_roundtable' });
+    } else {
+      // Everyone thinks they're all faithful — reveal time!
+      // Check if there are actually any traitors left
+      const snap = await get(playersRef);
+      const updatedPlayers = snap.val() || {};
+      const alive = Object.values(updatedPlayers).filter(p => p.status === 'alive');
+      const aliveT = alive.filter(p => p.role === 'traitor');
+
+      if (aliveT.length === 0) {
+        await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
+      } else {
+        await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
+      }
     }
   }
 
@@ -306,7 +385,7 @@ export default function HostDashboard() {
       {/* HEADER */}
       <div className="tv-title">The Traitors</div>
       <div className="tv-subtitle" style={{ marginBottom: 10 }}>
-        Jazzy's Birthday — {phase === 'lobby' ? 'Waiting for Players' : `Round ${round}`}
+        Jazzy's Birthday — {phase === 'lobby' ? 'Waiting for Players' : `Day ${round}`}
       </div>
 
       {/* PAUSE INDICATOR */}
@@ -422,6 +501,16 @@ export default function HostDashboard() {
                   onChange={e => updateGameConfig({ minCharCount: parseInt(e.target.value) || 15 })}
                 />
               </div>
+              <div className="config-item">
+                <label>Finale Trigger (players left)</label>
+                <input
+                  type="number"
+                  className="number-input"
+                  min={3} max={8}
+                  value={config.finaleThreshold || 5}
+                  onChange={e => updateGameConfig({ finaleThreshold: parseInt(e.target.value) || 5 })}
+                />
+              </div>
             </div>
 
             {/* Roles are randomly assigned — host is safe to play */}
@@ -456,8 +545,8 @@ export default function HostDashboard() {
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--text-dim)', margin: '20px 0' }}>
               All players: check your phones now.
             </p>
-            <button className="btn btn-primary btn-lg" onClick={handleStartNight} style={{ marginTop: 20 }}>
-              Begin Night Phase
+            <button className="btn btn-primary btn-lg" onClick={handleStartDay} style={{ marginTop: 20 }}>
+              Begin Day 1
             </button>
           </div>
           <PortraitWall players={players} />
@@ -585,10 +674,13 @@ export default function HostDashboard() {
             animation: 'candleFlicker 3s infinite',
             margin: '30px 0',
           }}>
-            CHALLENGE ROUND
+            MISSION / CHALLENGE
           </div>
-          <p style={{ fontSize: '1.3rem', color: 'var(--text-dim)', marginBottom: 30 }}>
+          <p style={{ fontSize: '1.3rem', color: 'var(--text-dim)', marginBottom: 10 }}>
             The winner earns a shield — protection from murder for one night.
+          </p>
+          <p style={{ fontSize: '1rem', color: 'var(--text-dim)', marginBottom: 30, fontStyle: 'italic' }}>
+            Take your time — discuss, socialize, and play the challenge before moving on.
           </p>
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
@@ -620,10 +712,10 @@ export default function HostDashboard() {
           </div>
 
           <div className="host-controls" style={{ marginTop: 20 }}>
-            <button className="btn btn-primary" onClick={handleAdvanceToRoundtable}>
-              Proceed to Roundtable
+            <button className="btn btn-primary" onClick={handleStartNight}>
+              Proceed to Night Phase
             </button>
-            <button className="btn btn-dark" onClick={handleAdvanceToRoundtable}>
+            <button className="btn btn-dark" onClick={handleStartNight}>
               Skip Challenge
             </button>
           </div>
@@ -787,19 +879,19 @@ export default function HostDashboard() {
               </div>
               <div style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: '1.3rem',
-                color: 'var(--gold)',
-                letterSpacing: 3,
+                fontSize: '1rem',
+                color: 'var(--text-dim)',
+                letterSpacing: 2,
                 marginBottom: 30,
               }}>
-                REVEAL YOUR LOYALTY
+                Their loyalty remains unknown...
               </div>
 
               <button
                 className="btn btn-primary btn-lg"
                 onClick={() => handleConfirmBanishment()}
               >
-                Reveal Role
+                Continue to Night
               </button>
             </div>
           )}
@@ -817,7 +909,7 @@ export default function HostDashboard() {
 
           <div style={{ margin: '30px 0' }}>
             <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-dim)', fontSize: '1.2rem', letterSpacing: 2, marginBottom: 5 }}>
-              Round {round} Complete
+              Day {round} Complete
             </div>
             <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2 }}>
               {alivePlayers.length} players remain
@@ -826,7 +918,7 @@ export default function HostDashboard() {
 
           <div className="host-controls">
             <button className="btn btn-primary btn-lg" onClick={handleNextRound}>
-              Begin Round {round + 1}
+              Begin Day {round + 1}
             </button>
             <button className="btn btn-dark" onClick={() => handleTriggerEndgame('faithful')}>
               Faithful Win (Manual)
@@ -853,6 +945,203 @@ export default function HostDashboard() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          FINALE — ROUNDTABLE (discussion before vote)
+          ============================================================ */}
+      {phase === 'finale_roundtable' && (
+        <div className="fade-in" style={{ textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2.5rem',
+            color: 'var(--gold)',
+            letterSpacing: 4,
+            animation: 'candleFlicker 3s infinite',
+            margin: '30px 0 10px',
+          }}>
+            THE FINAL ROUNDTABLE
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '1.1rem',
+            color: 'var(--text-dim)',
+            letterSpacing: 2,
+            marginBottom: 20,
+          }}>
+            {alivePlayers.length} players remain. Discuss who you trust.
+          </div>
+
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
+
+          <div className="host-controls" style={{ marginTop: 20 }}>
+            <button className="btn btn-primary btn-lg" onClick={handleFinaleStartVoting}>
+              Begin Banishment Vote
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          FINALE — VOTING
+          ============================================================ */}
+      {phase === 'finale_voting' && (
+        <div className="fade-in">
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '2rem',
+              color: 'var(--crimson-light)',
+              letterSpacing: 4,
+            }}>
+              FINALE — BANISHMENT VOTE
+            </div>
+            <p style={{ color: 'var(--text-dim)', marginTop: 5 }}>
+              Vote to banish — their role will NOT be revealed.
+            </p>
+            <div style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', marginTop: 10, letterSpacing: 2 }}>
+              {Object.keys(votes).length} / {alivePlayers.length} VOTES CAST
+            </div>
+          </div>
+
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
+
+          <div className="host-controls" style={{ marginTop: 20 }}>
+            <button className="btn btn-primary" onClick={handleFinaleRevealVotes}>
+              Reveal Votes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          FINALE — BANISHMENT REVEAL (no role reveal)
+          ============================================================ */}
+      {phase === 'finale_banishment' && (
+        <div className="fade-in">
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.5rem',
+              color: 'var(--text-dim)',
+              letterSpacing: 3,
+              marginBottom: 10,
+            }}>
+              THE VOTES ARE IN
+            </div>
+          </div>
+
+          {/* Vote results bars */}
+          <div style={{ maxWidth: 600, margin: '0 auto 30px' }}>
+            {voteTally.map(([name, count]) => (
+              <div className="vote-bar" key={name}>
+                <span className="name" style={{
+                  color: name === banishedPlayer ? 'var(--crimson-light)' : 'var(--text)',
+                  fontWeight: name === banishedPlayer ? 700 : 400,
+                }}>
+                  {name}
+                </span>
+                <div className="bar">
+                  <div
+                    className="bar-fill"
+                    style={{ width: `${(count / maxVotes) * 100}%` }}
+                  />
+                </div>
+                <span className="count">{count}</span>
+              </div>
+            ))}
+          </div>
+
+          {banishedPlayer && (
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div className="cinematic-name" style={{ fontSize: '3rem' }}>
+                {banishedPlayer}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: '1.5rem',
+                color: 'var(--text)',
+                letterSpacing: 3,
+                marginBottom: 10,
+              }}>
+                YOU HAVE BEEN BANISHED
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1rem',
+                color: 'var(--text-dim)',
+                letterSpacing: 2,
+                marginBottom: 30,
+              }}>
+                Their loyalty remains a mystery...
+              </div>
+
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleFinaleBanishment}
+              >
+                Continue
+              </button>
+            </div>
+          )}
+
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
+        </div>
+      )}
+
+      {/* ============================================================
+          FINALE — DECISION: "Do you think there are still traitors?"
+          ============================================================ */}
+      {phase === 'finale_decision' && (
+        <div className="fade-in" style={{ textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            color: 'var(--gold)',
+            letterSpacing: 4,
+            animation: 'candleFlicker 3s infinite',
+            margin: '30px 0 10px',
+          }}>
+            THE FIRE OF TRUTH
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '1.1rem',
+            color: 'var(--text-dim)',
+            letterSpacing: 2,
+            marginBottom: 10,
+          }}>
+            Each player must decide:
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: '1.2rem',
+            color: 'var(--text)',
+            marginBottom: 20,
+            maxWidth: 500,
+            margin: '0 auto 20px',
+          }}>
+            Do you believe there are still traitors among you?<br />
+            If <strong style={{ color: 'var(--crimson-light)' }}>anyone</strong> says yes → another banishment vote.<br />
+            If <strong style={{ color: 'var(--gold)' }}>everyone</strong> says all faithful → roles are revealed.
+          </div>
+
+          <div style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', marginTop: 10, letterSpacing: 2, marginBottom: 20 }}>
+            {Object.keys(votes).length} / {alivePlayers.length} DECISIONS MADE
+          </div>
+
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
+
+          <div className="host-controls" style={{ marginTop: 20 }}>
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={handleFinaleDecisionResult}
+              disabled={Object.keys(votes).length < alivePlayers.length}
+            >
+              Reveal Decisions
+            </button>
           </div>
         </div>
       )}

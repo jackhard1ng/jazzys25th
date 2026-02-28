@@ -80,7 +80,7 @@ export default function SpectatorMode({ player, players, gameState, traitorChat 
           letterSpacing: 2,
           marginBottom: 10,
         }}>
-          GAME STATUS — Round {gameState.round}
+          GAME STATUS — Day {gameState.round}
         </h3>
         <div style={{ fontSize: '0.9rem', color: 'var(--text-dim)' }}>
           Phase: <span style={{ color: 'var(--text)', textTransform: 'uppercase' }}>{gameState.phase}</span>

@@ -416,7 +416,7 @@ export default function NightPhase({
               MURDER VOTE
             </h3>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
-              All traitors must agree on a target. Majority rules.
+              All traitors must agree on the SAME target. If you split votes, no one dies.
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

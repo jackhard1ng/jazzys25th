@@ -5,7 +5,7 @@ import Timer from './Timer';
 import NightPhase from './NightPhase';
 import VotingScreen from './VotingScreen';
 import SpectatorMode from './SpectatorMode';
-import { addPlayer, updatePlayerPhoto } from '../firebase';
+import { addPlayer, updatePlayerPhoto, submitVote } from '../firebase';
 
 // ============================================================
 // PLAYER SCREEN — the mobile phone experience
@@ -433,10 +433,10 @@ export default function PlayerScreen() {
           animation: 'candleFlicker 3s infinite',
           textAlign: 'center',
         }}>
-          CHALLENGE ROUND
+          MISSION / CHALLENGE
         </div>
         <p style={{ color: 'var(--text-dim)', marginTop: 15, textAlign: 'center', maxWidth: 300 }}>
-          Compete for a shield. Watch the TV for instructions.
+          Compete for a shield — protection from murder for one night. Watch the TV for instructions.
         </p>
         {player?.shield && (
           <div style={{ marginTop: 20 }}>
@@ -550,6 +550,189 @@ export default function PlayerScreen() {
   }
 
   // ============================================================
+  // FINALE — ROUNDTABLE (player view)
+  // ============================================================
+  if (phase === 'finale_roundtable') {
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '2rem',
+          color: 'var(--gold)',
+          letterSpacing: 4,
+          animation: 'candleFlicker 3s infinite',
+          textAlign: 'center',
+        }}>
+          THE FINAL ROUNDTABLE
+        </div>
+        <p style={{ color: 'var(--text-dim)', marginTop: 15, textAlign: 'center', maxWidth: 300 }}>
+          Discuss. Who do you trust? The host will start the vote.
+        </p>
+        <div style={{ marginTop: 20 }}>
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // FINALE — VOTING (player view — same as regular voting)
+  // ============================================================
+  if (phase === 'finale_voting') {
+    return (
+      <VotingScreen
+        playerName={playerName}
+        alivePlayers={alivePlayers}
+        votes={votes}
+        timerEnd={timerEnd}
+        isTraitor={isTraitor}
+        hasShield={player?.shield}
+      />
+    );
+  }
+
+  // ============================================================
+  // FINALE — BANISHMENT (player view)
+  // ============================================================
+  if (phase === 'finale_banishment') {
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        {banishedPlayer && (
+          <div className="fade-in" style={{ textAlign: 'center' }}>
+            <div style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: '1rem',
+              color: 'var(--text-dim)',
+              letterSpacing: 3,
+              marginBottom: 15,
+            }}>
+              THE VOTES ARE IN
+            </div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '2.5rem',
+              color: 'var(--crimson-light)',
+              textShadow: '0 0 30px rgba(139,0,0,0.8)',
+            }}>
+              {banishedPlayer}
+            </div>
+            <div style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: '1.2rem',
+              color: 'var(--text)',
+              letterSpacing: 3,
+              marginTop: 10,
+            }}>
+              HAS BEEN BANISHED
+            </div>
+            {banishedPlayer === playerName && (
+              <div className="panel panel-crimson" style={{ marginTop: 20 }}>
+                <p style={{ color: 'var(--crimson-light)', fontFamily: 'var(--font-heading)', letterSpacing: 2 }}>
+                  YOU HAVE BEEN BANISHED
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // FINALE — DECISION: "End Game" or "Banish Again" (player view)
+  // ============================================================
+  if (phase === 'finale_decision') {
+    const myDecision = votes[playerName];
+    const hasDecided = !!myDecision;
+
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '1.8rem',
+          color: 'var(--gold)',
+          letterSpacing: 4,
+          animation: 'candleFlicker 3s infinite',
+          textAlign: 'center',
+          marginBottom: 20,
+        }}>
+          THE FIRE OF TRUTH
+        </div>
+
+        {!hasDecided ? (
+          <div style={{ textAlign: 'center', maxWidth: 350 }}>
+            <p style={{ color: 'var(--text)', fontSize: '1.1rem', marginBottom: 25 }}>
+              Do you believe there are still traitors among you?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+              <button
+                className="btn btn-lg"
+                style={{
+                  background: 'linear-gradient(135deg, var(--crimson), var(--crimson-dark))',
+                  border: '2px solid var(--crimson-light)',
+                  color: 'var(--text)',
+                  padding: '18px 30px',
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.1rem',
+                  letterSpacing: 2,
+                }}
+                onClick={() => submitVote(playerName, 'still_traitors')}
+              >
+                BANISH AGAIN
+              </button>
+              <button
+                className="btn btn-lg"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(34,139,34,0.8), rgba(0,100,0,0.9))',
+                  border: '2px solid rgba(50,205,50,0.6)',
+                  color: 'var(--text)',
+                  padding: '18px 30px',
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.1rem',
+                  letterSpacing: 2,
+                }}
+                onClick={() => submitVote(playerName, 'all_faithful')}
+              >
+                END GAME — ALL FAITHFUL
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 30 }}>
+            <div style={{
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--gold)',
+              letterSpacing: 2,
+              marginBottom: 10,
+            }}>
+              DECISION MADE
+            </div>
+            <p style={{ color: 'var(--text-dim)' }}>
+              You chose: <strong style={{
+                color: myDecision?.target === 'still_traitors' ? 'var(--crimson-light)' : 'var(--gold)',
+              }}>
+                {myDecision?.target === 'still_traitors' ? 'BANISH AGAIN' : 'END GAME'}
+              </strong>
+            </p>
+            <div style={{
+              marginTop: 20,
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--text-dim)',
+              fontSize: '0.85rem',
+              letterSpacing: 1,
+              animation: 'pulse 2s infinite',
+            }}>
+              Waiting for all decisions...
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
   // BETWEEN ROUNDS
   // ============================================================
   if (phase === 'lobby_between_rounds') {
@@ -562,7 +745,7 @@ export default function PlayerScreen() {
           letterSpacing: 3,
           textAlign: 'center',
         }}>
-          Round {round} Complete
+          Day {round} Complete
         </div>
         <p style={{ color: 'var(--text-dim)', marginTop: 15, textAlign: 'center' }}>
           Waiting for the next round...

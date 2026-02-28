@@ -64,6 +64,7 @@ export async function resetGame() {
       promptsPerRound: 4,
       minCharCount: 15,
       shieldsEnabled: true,
+      finaleThreshold: 5, // trigger finale when this many players remain
     },
     players: {},
     votes: {},
