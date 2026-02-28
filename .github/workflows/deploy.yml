@@ -34,6 +34,19 @@ jobs:
         working-directory: game
         run: npm run build
 
+      - name: Set invite page as root
+        run: |
+          # Move React app entry to game.html
+          mv game/dist/index.html game/dist/game.html
+          # Copy invite page as the root index.html
+          cp index.html game/dist/index.html
+          # Copy invite assets (in case public/ didn't include them)
+          cp traitors-theme.mp3 game/dist/ 2>/dev/null || true
+          cp traitors-logo.png game/dist/ 2>/dev/null || true
+          cp dresscode-moodboard.jpeg game/dist/ 2>/dev/null || true
+          # Inject SPA route forwarder into invite page <head>
+          sed -i 's|<head>|<head>\n<script>if(window.location.search\&\&window.location.search[1]==="/"){window.location.replace("/jazzys25th/game.html"+window.location.search+window.location.hash);}</script>|' game/dist/index.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
