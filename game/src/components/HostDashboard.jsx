@@ -17,7 +17,7 @@ const PRESET_PLAYERS = [
   'Jack', 'Isabel', 'Keegan', 'Tatum', 'Sydney', 'Carson', 'Ellie',
   'Chandler', 'Josh', 'Gavin', 'Ryan', 'Bailey', 'Aubrey', 'Aaron',
   'Katie', 'Isabelle', 'Braxton', 'Isaac', 'Gaige', 'Shelley',
-  'Gunner', 'Natalia', 'David', 'Hailie', 'Fred',
+  'Gunner', 'Natalia', 'David', 'Hallie', 'Fred',
 ];
 
 export default function HostDashboard() {
