@@ -7,6 +7,7 @@ export default function App() {
     <div className="app-container">
       <Routes>
         <Route path="/host" element={<HostDashboard />} />
+        <Route path="/play" element={<PlayerScreen />} />
         <Route path="/*" element={<PlayerScreen />} />
       </Routes>
     </div>

@@ -286,7 +286,7 @@ export default function PlayerScreen() {
               A SHIELD WAS PLAYED
             </div>
             <p style={{ color: 'var(--text-dim)', marginTop: 15, fontSize: '1.2rem' }}>
-              No one was murdered tonight.
+              No one was murdered.
             </p>
           </div>
         ) : murderTarget ? (
@@ -298,7 +298,7 @@ export default function PlayerScreen() {
               letterSpacing: 3,
               marginBottom: 20,
             }}>
-              Last night, the traitors struck...
+              The traitors have struck...
             </div>
             <div style={{
               fontFamily: 'var(--font-display)',
@@ -323,7 +323,7 @@ export default function PlayerScreen() {
         ) : (
           <div className="fade-in" style={{ textAlign: 'center' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--text-dim)', letterSpacing: 3 }}>
-              No one was murdered tonight.
+              No one was murdered.
             </div>
           </div>
         )}

@@ -183,25 +183,12 @@ export default function HostDashboard() {
       }
     });
 
-    // Check if target has a shield
-    if (target && players[target]?.shield) {
-      await updatePlayerShield(target, false);
-      await updateGameState({
-        phase: 'murderReveal',
-        murderTarget: target,
-        shieldBlocked: true,
-      });
-    } else if (target) {
-      await updatePlayerStatus(target, 'murdered');
-      await updateGameState({
-        phase: 'murderReveal',
-        murderTarget: target,
-        shieldBlocked: false,
-      });
-    } else {
-      // No murder — skip to challenge/roundtable
-      await updateGameState({ phase: 'murderReveal', murderTarget: null, shieldBlocked: false });
-    }
+    // Store murder target but don't apply yet — murder reveal comes after roundtable
+    await updateGameState({
+      phase: 'challenge',
+      murderTarget: target || null,
+      shieldBlocked: false,
+    });
   }
 
   async function handleAdvanceToChallenge() {
@@ -245,21 +232,25 @@ export default function HostDashboard() {
     await updatePlayerStatus(name, 'banished');
     setRevealedRoles(prev => ({ ...prev, [name]: role }));
 
-    // Check win conditions
-    const snap = await get(playersRef);
-    const updatedPlayers = snap.val() || {};
-    const alive = Object.values(updatedPlayers).filter(p => p.status === 'alive');
-    const aliveT = alive.filter(p => p.role === 'traitor');
-    const aliveF = alive.filter(p => p.role === 'faithful');
+    // Apply the murder now (murder reveal comes after banishment)
+    let shieldWasBlocked = false;
+    if (murderTarget) {
+      const snap = await get(playersRef);
+      const currentPlayers = snap.val() || {};
+      const targetPlayer = currentPlayers[murderTarget];
 
-    if (aliveT.length === 0) {
-      await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
-    } else if (aliveT.length >= aliveF.length) {
-      await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
-    } else {
-      // Continue — advance round and go to night
-      await updateGameState({ phase: 'lobby_between_rounds' });
+      if (targetPlayer?.status === 'alive') {
+        if (targetPlayer?.shield) {
+          await updatePlayerShield(murderTarget, false);
+          shieldWasBlocked = true;
+        } else {
+          await updatePlayerStatus(murderTarget, 'murdered');
+        }
+      }
+      // If target was just banished, murder doesn't apply
     }
+
+    await updateGameState({ phase: 'murderReveal', shieldBlocked: shieldWasBlocked });
   }
 
   async function handleNextRound() {
@@ -299,20 +290,22 @@ export default function HostDashboard() {
   }
 
   // ============================================================
-  // CHECK WIN CONDITIONS after murder
+  // ADVANCE AFTER MURDER REVEAL — check win conditions
   // ============================================================
-  async function checkWinAfterMurder() {
+  async function handleAdvanceAfterMurder() {
     const snap = await get(playersRef);
     const updatedPlayers = snap.val() || {};
     const alive = Object.values(updatedPlayers).filter(p => p.status === 'alive');
     const aliveT = alive.filter(p => p.role === 'traitor');
     const aliveF = alive.filter(p => p.role === 'faithful');
 
-    if (aliveT.length >= aliveF.length) {
+    if (aliveT.length === 0) {
+      await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
+    } else if (aliveT.length >= aliveF.length) {
       await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
-      return true;
+    } else {
+      await updateGameState({ phase: 'lobby_between_rounds' });
     }
-    return false;
   }
 
   // ============================================================
@@ -524,7 +517,7 @@ export default function HostDashboard() {
               Begin Night Phase
             </button>
           </div>
-          <PortraitWall players={players} showTraitorIndicator />
+          <PortraitWall players={players} />
         </div>
       )}
 
@@ -544,24 +537,9 @@ export default function HostDashboard() {
               {alivePlayers.length}/{alivePlayers.length} PLAYERS ACTIVE
             </div>
 
-            {/* Traitor murder votes (host-only info) */}
-            <div className="panel panel-crimson" style={{ maxWidth: 400, margin: '15px auto', textAlign: 'left' }}>
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--crimson-light)', marginBottom: 10, fontSize: '0.9rem', letterSpacing: 2 }}>
-                TRAITOR MURDER VOTES (HOST ONLY)
-              </h3>
-              {Object.entries(murderTally).length === 0 ? (
-                <p style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>No votes yet...</p>
-              ) : (
-                Object.entries(murderTally).map(([target, count]) => (
-                  <div key={target} style={{ padding: '4px 0', color: 'var(--text)' }}>
-                    {target}: {count} vote{count !== 1 ? 's' : ''}
-                  </div>
-                ))
-              )}
-            </div>
           </div>
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div className="host-controls" style={{ marginTop: 20 }}>
             <button className="btn btn-primary" onClick={handleEndNight}>
@@ -595,7 +573,23 @@ export default function HostDashboard() {
                 The traitors targeted <strong style={{ color: 'var(--gold)' }}>{murderTarget}</strong>
               </div>
               <div style={{ fontSize: '1.3rem', color: 'var(--gold)' }}>
-                No one was murdered tonight.
+                No one was murdered.
+              </div>
+            </div>
+          ) : murderTarget && players[murderTarget]?.status === 'banished' ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1.8rem',
+                color: 'var(--text-dim)',
+                letterSpacing: 4,
+                marginBottom: 30,
+              }}>
+                The traitors targeted...
+              </div>
+              <div className="cinematic-name">{murderTarget}</div>
+              <div style={{ fontSize: '1.3rem', color: 'var(--gold)', marginTop: 15 }}>
+                But they were already banished.
               </div>
             </div>
           ) : murderTarget ? (
@@ -607,7 +601,7 @@ export default function HostDashboard() {
                 letterSpacing: 4,
                 marginBottom: 30,
               }}>
-                Last night, the traitors struck...
+                The traitors have struck...
               </div>
               <div className="cinematic-name">{murderTarget}</div>
               <div style={{ fontSize: '1.5rem', color: 'var(--crimson-light)', marginTop: 10 }}>
@@ -620,33 +614,16 @@ export default function HostDashboard() {
                 The traitors could not agree...
               </div>
               <div style={{ fontSize: '1.3rem', color: 'var(--gold)', marginTop: 15 }}>
-                No one was murdered tonight.
+                No one was murdered.
               </div>
             </div>
           )}
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div className="host-controls" style={{ marginTop: 20 }}>
-            <button className="btn btn-gold" onClick={async () => {
-              if (murderTarget && !shieldBlocked) {
-                const won = await checkWinAfterMurder();
-                if (!won) handleAdvanceToChallenge();
-              } else {
-                handleAdvanceToChallenge();
-              }
-            }}>
-              Continue to Challenge Round
-            </button>
-            <button className="btn btn-dark" onClick={async () => {
-              if (murderTarget && !shieldBlocked) {
-                const won = await checkWinAfterMurder();
-                if (!won) handleAdvanceToRoundtable();
-              } else {
-                handleAdvanceToRoundtable();
-              }
-            }}>
-              Skip to Roundtable
+            <button className="btn btn-primary btn-lg" onClick={handleAdvanceAfterMurder}>
+              Continue
             </button>
           </div>
         </div>
@@ -671,7 +648,7 @@ export default function HostDashboard() {
             The winner earns a shield — protection from murder for one night.
           </p>
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div className="panel" style={{ maxWidth: 400, margin: '20px auto' }}>
             <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 10, letterSpacing: 2 }}>
@@ -702,6 +679,9 @@ export default function HostDashboard() {
           <div className="host-controls" style={{ marginTop: 20 }}>
             <button className="btn btn-primary" onClick={handleAdvanceToRoundtable}>
               Proceed to Roundtable
+            </button>
+            <button className="btn btn-dark" onClick={handleAdvanceToRoundtable}>
+              Skip Challenge
             </button>
           </div>
         </div>
@@ -748,7 +728,7 @@ export default function HostDashboard() {
             Scroll {Math.max(0, (currentScrollIndex ?? -1) + 1)} of {roundScrolls.length}
           </div>
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div className="host-controls" style={{ marginTop: 20 }}>
             <button
@@ -794,7 +774,7 @@ export default function HostDashboard() {
             </div>
           </div>
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div className="host-controls" style={{ marginTop: 20 }}>
             <button
@@ -889,7 +869,7 @@ export default function HostDashboard() {
             </div>
           )}
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
         </div>
       )}
 
@@ -898,14 +878,14 @@ export default function HostDashboard() {
           ============================================================ */}
       {phase === 'lobby_between_rounds' && (
         <div className="fade-in" style={{ textAlign: 'center' }}>
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div style={{ margin: '30px 0' }}>
             <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-dim)', fontSize: '1.2rem', letterSpacing: 2, marginBottom: 5 }}>
               Round {round} Complete
             </div>
             <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2 }}>
-              {aliveTraitors.length} traitor{aliveTraitors.length !== 1 ? 's' : ''} remain among {alivePlayers.length} players
+              {alivePlayers.length} players remain
             </div>
           </div>
 
@@ -993,7 +973,7 @@ export default function HostDashboard() {
             </div>
           </div>
 
-          <PortraitWall players={players} revealedRoles={revealedRoles} showTraitorIndicator />
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           {/* Win announcement */}
           {endgameRevealed.length === alivePlayers.length && (
@@ -1077,11 +1057,11 @@ export default function HostDashboard() {
           <span style={{
             fontFamily: 'var(--font-heading)',
             fontSize: '0.7rem',
-            color: 'var(--crimson-light)',
+            color: 'var(--gold)',
             letterSpacing: 1,
             alignSelf: 'center',
           }}>
-            🗡️ {aliveTraitors.length}T / {aliveFaithful.length}F alive
+            {alivePlayers.length} players alive
           </span>
           <button className="btn btn-sm btn-dark" onClick={handlePause}>
             {paused ? '▶' : '⏸'}

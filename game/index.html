@@ -21,6 +21,15 @@
         }
       }(window.location))
     </script>
+    <!-- Redirect root URL to invite page -->
+    <script>
+      (function() {
+        var p = window.location.pathname;
+        if ((p === '/jazzys25th/' || p === '/jazzys25th') && !window.location.search) {
+          window.location.replace('/jazzys25th/invite.html');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
