@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import useGame from '../hooks/useGame';
-import useTimer from '../hooks/useTimer';
 import Timer from './Timer';
 import PortraitWall from './PortraitWall';
 import { selectPrompts } from '../prompts';
@@ -23,16 +22,13 @@ const PRESET_PLAYERS = [
 
 export default function HostDashboard() {
   const {
-    players, playerList, alivePlayers, aliveTraitors, aliveFaithful,
-    gameState, config, votes, scrolls, traitorChat, murderVotes,
+    players, playerList, alivePlayers,
+    gameState, config, votes, scrolls, murderVotes,
     connected,
   } = useGame();
 
   const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, currentScrollIndex, paused } = gameState;
-  const { timeLeft, isExpired } = useTimer(timerEnd);
 
-  const [manualTraitors, setManualTraitors] = useState([]);
-  const [randomAssign, setRandomAssign] = useState(true);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [shieldTarget, setShieldTarget] = useState('');
   const [revealedRoles, setRevealedRoles] = useState({});
@@ -52,17 +48,6 @@ export default function HostDashboard() {
   }, [votes, alivePlayers]);
 
   const maxVotes = voteTally.length > 0 ? Math.max(...voteTally.map(([, c]) => c), 1) : 1;
-
-  // ============================================================
-  // MURDER VOTE TALLY (traitors)
-  // ============================================================
-  const murderTally = useMemo(() => {
-    const tally = {};
-    Object.values(murderVotes).forEach(v => {
-      tally[v.target] = (tally[v.target] || 0) + 1;
-    });
-    return tally;
-  }, [murderVotes]);
 
   // ============================================================
   // SCROLLS FOR ROUNDTABLE (game-related responses from current round)
@@ -121,18 +106,9 @@ export default function HostDashboard() {
       return;
     }
 
-    let traitorNames;
-    if (randomAssign) {
-      // Random assignment
-      const shuffled = [...names].sort(() => Math.random() - 0.5);
-      traitorNames = shuffled.slice(0, config.numTraitors);
-    } else {
-      if (manualTraitors.length !== config.numTraitors) {
-        alert(`Select exactly ${config.numTraitors} traitors.`);
-        return;
-      }
-      traitorNames = [...manualTraitors];
-    }
+    // Random assignment — host doesn't know who the traitors are
+    const shuffled = [...names].sort(() => Math.random() - 0.5);
+    const traitorNames = shuffled.slice(0, config.numTraitors);
 
     await assignRoles(traitorNames);
     await updateGameState({ phase: 'roleReveal', round: 1 });
@@ -226,9 +202,13 @@ export default function HostDashboard() {
     }
   }
 
-  async function handleConfirmBanishment(role) {
+  async function handleConfirmBanishment() {
     const name = banishedPlayer;
     if (!name) return;
+    // Auto-detect role from Firebase — host never needs to know
+    const snap = await get(playersRef);
+    const currentPlayers = snap.val() || {};
+    const role = currentPlayers[name]?.role || 'faithful';
     await updatePlayerStatus(name, 'banished');
     setRevealedRoles(prev => ({ ...prev, [name]: role }));
 
@@ -444,51 +424,14 @@ export default function HostDashboard() {
               </div>
             </div>
 
-            {/* Traitor assignment mode */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                <button
-                  className={`btn btn-sm ${randomAssign ? 'btn-gold' : 'btn-dark'}`}
-                  onClick={() => setRandomAssign(true)}
-                >
-                  Random Assignment
-                </button>
-                <button
-                  className={`btn btn-sm ${!randomAssign ? 'btn-primary' : 'btn-dark'}`}
-                  onClick={() => setRandomAssign(false)}
-                >
-                  Hand-Pick Traitors
-                </button>
-              </div>
-
-              {!randomAssign && (
-                <div style={{ padding: 10, background: 'var(--dark-gray)', borderRadius: 8 }}>
-                  <label style={{ fontFamily: 'var(--font-heading)', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                    Select {config.numTraitors} traitors:
-                  </label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                    {playerList.map(p => {
-                      const selected = manualTraitors.includes(p.name);
-                      return (
-                        <button
-                          key={p.name}
-                          className={`btn btn-sm ${selected ? 'btn-primary' : 'btn-dark'}`}
-                          onClick={() => {
-                            if (selected) {
-                              setManualTraitors(prev => prev.filter(n => n !== p.name));
-                            } else if (manualTraitors.length < config.numTraitors) {
-                              setManualTraitors(prev => [...prev, p.name]);
-                            }
-                          }}
-                          style={{ fontSize: '0.75rem', padding: '5px 10px' }}
-                        >
-                          {selected ? '🗡️ ' : ''}{p.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+            {/* Roles are randomly assigned — host is safe to play */}
+            <div style={{
+              marginBottom: 20, padding: 12, background: 'var(--dark-gray)', borderRadius: 8,
+              textAlign: 'center',
+            }}>
+              <span style={{ fontFamily: 'var(--font-heading)', fontSize: '0.8rem', color: 'var(--text-dim)', letterSpacing: 1 }}>
+                Roles will be randomly assigned — the host can play too
+              </span>
             </div>
 
             <button
@@ -852,20 +795,12 @@ export default function HostDashboard() {
                 REVEAL YOUR LOYALTY
               </div>
 
-              <div style={{ display: 'flex', gap: 15, justifyContent: 'center' }}>
-                <button
-                  className="btn btn-gold btn-lg"
-                  onClick={() => handleConfirmBanishment('faithful')}
-                >
-                  Faithful
-                </button>
-                <button
-                  className="btn btn-primary btn-lg"
-                  onClick={() => handleConfirmBanishment('traitor')}
-                >
-                  Traitor
-                </button>
-              </div>
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={() => handleConfirmBanishment()}
+              >
+                Reveal Role
+              </button>
             </div>
           )}
 

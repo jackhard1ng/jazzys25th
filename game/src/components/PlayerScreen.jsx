@@ -5,7 +5,7 @@ import Timer from './Timer';
 import NightPhase from './NightPhase';
 import VotingScreen from './VotingScreen';
 import SpectatorMode from './SpectatorMode';
-import { addPlayer } from '../firebase';
+import { addPlayer, updatePlayerPhoto } from '../firebase';
 
 // ============================================================
 // PLAYER SCREEN — the mobile phone experience
@@ -25,6 +25,8 @@ export default function PlayerScreen() {
   const [nameInput, setNameInput] = useState('');
   const [roleRevealed, setRoleRevealed] = useState(false);
   const [showRole, setShowRole] = useState(false);
+  const fileInputRef = useRef(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const player = players[playerName] || null;
   const isAlive = player?.status === 'alive';
@@ -68,6 +70,43 @@ export default function PlayerScreen() {
         alert('That name is already taken. Try a different name.');
       }
     }
+  }
+
+  // Compress and upload photo
+  async function handlePhotoUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file || !playerName) return;
+    setUploadingPhoto(true);
+    try {
+      const dataUrl = await compressImage(file, 150, 0.7);
+      await updatePlayerPhoto(playerName, dataUrl);
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+    }
+    setUploadingPhoto(false);
+  }
+
+  function compressImage(file, maxSize, quality) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          // Crop to square from center
+          const size = Math.min(img.width, img.height);
+          const sx = (img.width - size) / 2;
+          const sy = (img.height - size) / 2;
+          canvas.width = maxSize;
+          canvas.height = maxSize;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   // ============================================================
@@ -164,10 +203,55 @@ export default function PlayerScreen() {
           </div>
         </div>
 
+        {/* Photo upload */}
+        <div className="panel" style={{ margin: '0 0 30px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 10, fontSize: '0.85rem' }}>
+            ADD YOUR HEADSHOT
+          </div>
+          {player?.photo ? (
+            <div style={{ marginBottom: 10 }}>
+              <img
+                src={player.photo}
+                alt={playerName}
+                style={{
+                  width: 100, height: 100, borderRadius: '50%',
+                  border: '3px solid var(--gold-dark)',
+                  objectFit: 'cover',
+                }}
+              />
+            </div>
+          ) : (
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
+              Upload a photo so everyone knows who you are
+            </p>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            onChange={handlePhotoUpload}
+            style={{ display: 'none' }}
+          />
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button
+              className="btn btn-sm btn-gold"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? 'Uploading...' : player?.photo ? 'Change Photo' : 'Take Selfie'}
+            </button>
+          </div>
+        </div>
+
         <div className="player-list" style={{ justifyContent: 'center' }}>
           {playerList.map(p => (
             <div key={p.name} className="player-chip">
-              <span className="dot" />
+              {p.photo ? (
+                <img src={p.photo} alt={p.name} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <span className="dot" />
+              )}
               {p.name}
             </div>
           ))}
