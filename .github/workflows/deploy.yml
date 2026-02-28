@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master, main, claude/deploy-game-neIrE]
+    branches: [master, main, claude/deploy-game-neIrE, claude/traitors-party-rsvp-site-hJVyW]
 
 permissions:
   contents: read
