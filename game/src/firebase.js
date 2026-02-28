@@ -7,13 +7,14 @@ import { getDatabase, ref, set, get, onValue, update, push, remove, onDisconnect
 // Go to: Firebase Console → Project Settings → Your apps → Web app
 // ============================================================
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyA10gaHhXSenxR30r2vMvgKLY3Laque-rI",
+  authDomain: "jazzy-s-25th.firebaseapp.com",
+  databaseURL: "https://jazzy-s-25th-default-rtdb.firebaseio.com",
+  projectId: "jazzy-s-25th",
+  storageBucket: "jazzy-s-25th.firebasestorage.app",
+  messagingSenderId: "152769764617",
+  appId: "1:152769764617:web:8ac076038068b13313c7d8",
+  measurementId: "G-KZ46GVN46M"
 };
 
 const app = initializeApp(firebaseConfig);
