@@ -179,6 +179,11 @@ export async function updatePlayerRole(name, role) {
   await update(getPlayerRef(name), { role });
 }
 
+// Update player photo (base64 data URL)
+export async function updatePlayerPhoto(name, photoDataUrl) {
+  await update(getPlayerRef(name), { photo: photoDataUrl });
+}
+
 // Set murder target
 export async function setMurderTarget(target) {
   await update(stateRef, { murderTarget: target });
