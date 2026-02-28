@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, claude/traitors-party-rsvp-site-hJVyW, claude/traitors-party-game-app-CMuT2]
+    branches: [master, main, claude/deploy-game-neIrE]
 
 permissions:
   contents: read
@@ -32,7 +32,7 @@ jobs:
 
       - name: Build
         working-directory: game
-        run: npx vite build --base=/jazzys25th/
+        run: npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
