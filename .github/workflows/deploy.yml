@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, claude/traitors-party-game-app-CMuT2]
+    branches: [main, claude/traitors-party-rsvp-site-hJVyW, claude/traitors-party-game-app-CMuT2]
 
 permissions:
   contents: read
