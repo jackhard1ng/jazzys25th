@@ -21,12 +21,13 @@
         }
       }(window.location))
     </script>
-    <!-- Redirect root URL to invite page -->
+    <!-- Redirect root URL to invite page (preserve query params like ?invite=name) -->
     <script>
       (function() {
         var p = window.location.pathname;
-        if ((p === '/jazzys25th/' || p === '/jazzys25th') && !window.location.search) {
-          window.location.replace('/jazzys25th/invite.html');
+        var s = window.location.search;
+        if ((p === '/jazzys25th/' || p === '/jazzys25th') && !(s && s[1] === '/')) {
+          window.location.replace('/jazzys25th/invite.html' + s + window.location.hash);
         }
       })();
     </script>

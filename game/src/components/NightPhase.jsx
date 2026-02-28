@@ -132,7 +132,7 @@ export default function NightPhase({
 
   return (
     <div className="player-screen" style={{
-      background: 'radial-gradient(ellipse at center, rgba(20,10,10,1), var(--black))',
+      background: 'radial-gradient(ellipse at center, rgba(15,15,15,1), var(--black))',
       paddingBottom: isTraitor ? 80 : 100,
     }}>
       {/* Header */}
@@ -140,7 +140,7 @@ export default function NightPhase({
         <div style={{
           fontFamily: 'var(--font-display)',
           fontSize: '1.3rem',
-          color: 'var(--crimson-light)',
+          color: 'var(--gold)',
           letterSpacing: 3,
           marginBottom: 5,
         }}>
@@ -148,8 +148,8 @@ export default function NightPhase({
         </div>
         <Timer timerEnd={timerEnd} />
         <div style={{ marginTop: 8 }}>
-          <span className={`role-badge ${isTraitor ? 'traitor' : 'faithful'}`}>
-            {isTraitor ? '🗡️ Traitor' : '✨ Faithful'}
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
           </span>
         </div>
       </div>
@@ -182,17 +182,17 @@ export default function NightPhase({
             style={{
               flex: 1,
               padding: '10px',
-              background: showTraitorChat ? 'rgba(139,0,0,0.2)' : 'transparent',
-              border: `1px solid ${showTraitorChat ? 'var(--crimson)' : 'var(--stone)'}`,
+              background: showTraitorChat ? 'rgba(212,175,55,0.15)' : 'transparent',
+              border: `1px solid ${showTraitorChat ? 'var(--gold)' : 'var(--stone)'}`,
               borderRadius: '0 8px 8px 0',
-              color: showTraitorChat ? 'var(--crimson-light)' : 'var(--text-dim)',
+              color: showTraitorChat ? 'var(--gold)' : 'var(--text-dim)',
               fontFamily: 'var(--font-heading)',
               fontSize: '0.8rem',
               letterSpacing: 1,
               cursor: 'pointer',
             }}
           >
-            ● SECRET
+            SECRET
           </button>
         </div>
       )}
@@ -276,7 +276,7 @@ export default function NightPhase({
                     style={{
                       width: 8, height: 8, borderRadius: '50%',
                       background: i < currentPromptIdx ? 'var(--gold)'
-                        : i === currentPromptIdx ? 'var(--crimson-light)'
+                        : i === currentPromptIdx ? 'var(--gold-bright, #FFD700)'
                         : 'var(--stone)',
                       transition: 'background 0.3s',
                     }}
@@ -405,10 +405,10 @@ export default function NightPhase({
           </div>
 
           {/* Murder Vote */}
-          <div className="panel panel-crimson">
+          <div className="panel">
             <h3 style={{
               fontFamily: 'var(--font-heading)',
-              color: 'var(--crimson-light)',
+              color: 'var(--gold)',
               fontSize: '0.85rem',
               letterSpacing: 2,
               marginBottom: 10,
@@ -438,7 +438,7 @@ export default function NightPhase({
               <div style={{ marginTop: 10, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
                 {murderVoteEntries.map(([voter, vote]) => (
                   <div key={voter} style={{ padding: '2px 0' }}>
-                    <span style={{ color: 'var(--crimson-light)' }}>{voter}</span>
+                    <span style={{ color: 'var(--gold)' }}>{voter}</span>
                     {' → '}
                     <span style={{ color: 'var(--text)' }}>{vote.target}</span>
                   </div>

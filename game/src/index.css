@@ -366,7 +366,7 @@ textarea.input { resize: vertical; min-height: 80px; }
   text-transform: uppercase;
 }
 .role-badge.faithful { background: rgba(212,175,55,0.2); border: 1px solid var(--gold); color: var(--gold); }
-.role-badge.traitor { background: rgba(139,0,0,0.2); border: 1px solid var(--crimson); color: var(--crimson-light); }
+.role-badge.traitor { background: rgba(212,175,55,0.2); border: 1px solid var(--gold); color: var(--gold); }
 
 /* ============================================================
    SPECTATOR BAR
@@ -449,8 +449,8 @@ textarea.input { resize: vertical; min-height: 80px; }
   max-height: 300px;
   overflow-y: auto;
 }
-.traitor-chat .msg { padding: 8px 12px; border-bottom: 1px solid rgba(139,0,0,0.15); }
-.traitor-chat .msg .sender { font-family: var(--font-heading); font-size: 0.8rem; color: var(--crimson-light); letter-spacing: 1px; }
+.traitor-chat .msg { padding: 8px 12px; border-bottom: 1px solid rgba(212,175,55,0.15); }
+.traitor-chat .msg .sender { font-family: var(--font-heading); font-size: 0.8rem; color: var(--gold); letter-spacing: 1px; }
 .traitor-chat .msg .text { font-size: 1rem; color: var(--text); margin-top: 2px; }
 
 /* ============================================================
