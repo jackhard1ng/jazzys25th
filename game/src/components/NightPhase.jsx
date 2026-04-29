@@ -18,10 +18,12 @@ export default function NightPhase({
   const prompts = nightPhase?.prompts || [];
   const { timeLeft, isExpired } = useTimer(timerEnd);
 
-  // Prompt responses
+  // Prompt responses (parallel arrays: text + signed flag)
   const [responses, setResponses] = useState([]);
+  const [signedFlags, setSignedFlags] = useState([]);
   const [currentPromptIdx, setCurrentPromptIdx] = useState(0);
   const [currentText, setCurrentText] = useState('');
+  const [signCurrent, setSignCurrent] = useState(false);
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [bonusMode, setBonusMode] = useState(false);
 
@@ -37,12 +39,19 @@ export default function NightPhase({
   useEffect(() => {
     if (prompts.length > 0 && responses.length === 0) {
       setResponses(new Array(prompts.length).fill(''));
+      setSignedFlags(new Array(prompts.length).fill(false));
       setCurrentPromptIdx(0);
       setCurrentText('');
+      setSignCurrent(false);
       setAllSubmitted(false);
       setBonusMode(false);
     }
   }, [prompts.length]);
+
+  // When advancing to a new prompt, reset the per-prompt sign toggle.
+  useEffect(() => {
+    setSignCurrent(false);
+  }, [currentPromptIdx]);
 
   // Auto-scroll traitor chat
   useEffect(() => {
@@ -59,52 +68,79 @@ export default function NightPhase({
   const [bonusIdx, setBonusIdx] = useState(0);
   const [bonusText, setBonusText] = useState('');
 
+  function buildScrollData(textArr, signArr) {
+    return prompts.map((p, i) => {
+      const mode = p.mode || (p.isGame ? 'optional' : 'filler');
+      const signed = mode === 'signed' ? true
+        : mode === 'optional' ? !!signArr[i]
+        : false;
+      return {
+        text: textArr[i] || '',
+        mode,
+        prompt: p.text,
+        signed,
+      };
+    });
+  }
+
   function handleSubmitResponse() {
     if (currentText.length < minChars && !isTraitor) return;
 
     const newResponses = [...responses];
+    const newSigned = [...signedFlags];
     newResponses[currentPromptIdx] = currentText;
+    newSigned[currentPromptIdx] = signCurrent;
     setResponses(newResponses);
+    setSignedFlags(newSigned);
 
     if (currentPromptIdx < prompts.length - 1) {
       setCurrentPromptIdx(currentPromptIdx + 1);
       setCurrentText('');
     } else {
-      // All prompts answered — submit to Firebase
-      const scrollData = prompts.map((p, i) => ({
-        text: newResponses[i],
-        isGame: p.isGame,
-      }));
-      submitScrolls(round, playerName, scrollData);
+      submitScrolls(round, playerName, buildScrollData(newResponses, newSigned));
       setAllSubmitted(true);
       if (!isTraitor) setBonusMode(true);
     }
   }
 
   function handleSkipPrompt() {
-    // Traitors can skip prompts
     if (!isTraitor) return;
     const newResponses = [...responses];
+    const newSigned = [...signedFlags];
     newResponses[currentPromptIdx] = '';
+    newSigned[currentPromptIdx] = false;
     setResponses(newResponses);
+    setSignedFlags(newSigned);
 
     if (currentPromptIdx < prompts.length - 1) {
       setCurrentPromptIdx(currentPromptIdx + 1);
       setCurrentText('');
     } else {
-      const scrollData = prompts.map((p, i) => ({
-        text: newResponses[i],
-        isGame: p.isGame,
-      }));
-      submitScrolls(round, playerName, scrollData);
+      submitScrolls(round, playerName, buildScrollData(newResponses, newSigned));
       setAllSubmitted(true);
     }
   }
 
+  // Auto-submit whatever is typed when the timer hits zero.
+  useEffect(() => {
+    if (!isExpired || allSubmitted || prompts.length === 0) return;
+    const finalText = [...responses];
+    const finalSigned = [...signedFlags];
+    finalText[currentPromptIdx] = currentText; // capture in-progress prompt
+    finalSigned[currentPromptIdx] = signCurrent;
+    submitScrolls(round, playerName, buildScrollData(finalText, finalSigned));
+    setAllSubmitted(true);
+  }, [isExpired]);
+
   function handleBonusSubmit() {
     if (bonusText.length < minChars) return;
-    // Submit bonus as a game scroll
-    submitScrolls(round, `${playerName}_bonus_${bonusIdx}`, [{ text: bonusText, isGame: true }]);
+    // Bonus prompts are anonymous-optional scrolls (always anonymous here).
+    submitScrolls(round, `${playerName}_bonus_${bonusIdx}`, [{
+      text: bonusText,
+      mode: 'optional',
+      prompt: BONUS_PROMPTS[bonusIdx],
+      signed: false,
+    }]);
     setBonusText('');
     setBonusIdx(bonusIdx + 1);
   }
@@ -227,6 +263,32 @@ export default function NightPhase({
                 </span>
               </div>
 
+              {/* Mode badge */}
+              {(() => {
+                const mode = prompts[currentPromptIdx]?.mode;
+                const badge = mode === 'signed'
+                  ? { label: 'PUBLIC · SIGNED', color: 'var(--gold)' }
+                  : mode === 'optional'
+                    ? { label: 'PUBLIC · YOU CHOOSE', color: 'var(--crimson-light)' }
+                    : { label: 'PRIVATE · COVER', color: 'var(--text-dim)' };
+                return (
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '0.65rem',
+                    letterSpacing: 2,
+                    color: badge.color,
+                    border: `1px solid ${badge.color}`,
+                    borderRadius: 4,
+                    marginBottom: 10,
+                    opacity: 0.9,
+                  }}>
+                    {badge.label}
+                  </div>
+                );
+              })()}
+
               {/* Prompt text */}
               <div style={{
                 fontFamily: 'var(--font-body)',
@@ -248,6 +310,51 @@ export default function NightPhase({
                 rows={3}
                 style={{ marginBottom: 10 }}
               />
+
+              {/* Sign-name UI: optional prompts only. Signed prompts are always signed. */}
+              {prompts[currentPromptIdx]?.mode === 'optional' && (
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 10,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.8rem',
+                  letterSpacing: 1,
+                  color: signCurrent ? 'var(--gold)' : 'var(--text-dim)',
+                  cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={signCurrent}
+                    onChange={e => setSignCurrent(e.target.checked)}
+                    style={{ accentColor: 'var(--gold)', width: 16, height: 16 }}
+                  />
+                  {signCurrent ? `Signed as ${playerName}` : 'Anonymous (tap to sign)'}
+                </label>
+              )}
+              {prompts[currentPromptIdx]?.mode === 'signed' && (
+                <div style={{
+                  marginBottom: 10,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.75rem',
+                  letterSpacing: 1,
+                  color: 'var(--gold)',
+                }}>
+                  This scroll will display your name on the TV.
+                </div>
+              )}
+              {prompts[currentPromptIdx]?.mode === 'filler' && (
+                <div style={{
+                  marginBottom: 10,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.75rem',
+                  letterSpacing: 1,
+                  color: 'var(--text-dim)',
+                }}>
+                  This scroll is private — never displayed.
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button

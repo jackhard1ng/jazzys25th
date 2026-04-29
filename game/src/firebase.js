@@ -59,9 +59,9 @@ export async function resetGame() {
       paused: false,
     },
     config: {
-      numTraitors: 3,
-      nightDuration: 150, // seconds (2.5 min)
-      promptsPerRound: 4,
+      numTraitors: 4, // overwritten by weighted random pick at game start
+      nightDuration: 120, // seconds (2 min)
+      promptsPerRound: 3, // 1 signed + 1 optional + 1 filler
       minCharCount: 15,
       shieldsEnabled: true,
     },

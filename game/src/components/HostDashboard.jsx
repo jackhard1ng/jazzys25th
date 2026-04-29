@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import useGame from '../hooks/useGame';
 import Timer from './Timer';
 import PortraitWall from './PortraitWall';
-import { selectPrompts } from '../prompts';
+import { selectPrompts, pickTraitorCount } from '../prompts';
 import {
   resetGame, updateGameState, updateGameConfig, assignRoles,
   addPlayer, removePlayer, clearVotes, clearTraitorChat,
@@ -23,11 +23,11 @@ const PRESET_PLAYERS = [
 export default function HostDashboard() {
   const {
     players, playerList, alivePlayers,
-    gameState, config, votes, scrolls, murderVotes,
+    gameState, config, scrolls, murderVotes,
     connected,
   } = useGame();
 
-  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, currentScrollIndex, paused } = gameState;
+  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, paused, rolledTraitorCount } = gameState;
 
   const [newPlayerName, setNewPlayerName] = useState('');
   const [shieldTarget, setShieldTarget] = useState('');
@@ -36,40 +36,43 @@ export default function HostDashboard() {
   const [endgameRevealed, setEndgameRevealed] = useState([]);
 
   // ============================================================
-  // VOTE TALLY
+  // ROUNDTABLE GROUPS — one bucket per public prompt, with all responses.
+  // Filler responses are intentionally never surfaced.
+  // Each response = { text, author } where author is null when anonymous.
   // ============================================================
-  const voteTally = useMemo(() => {
-    const tally = {};
-    alivePlayers.forEach(p => { tally[p.name] = 0; });
-    Object.values(votes).forEach(v => {
-      if (tally[v.target] !== undefined) tally[v.target]++;
-    });
-    return Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  }, [votes, alivePlayers]);
-
-  const maxVotes = voteTally.length > 0 ? Math.max(...voteTally.map(([, c]) => c), 1) : 1;
-
-  // ============================================================
-  // SCROLLS FOR ROUNDTABLE (game-related responses from current round)
-  // ============================================================
-  const roundScrolls = useMemo(() => {
+  const roundtableGroups = useMemo(() => {
     const roundData = scrolls[round] || {};
-    const messages = [];
-    Object.values(roundData).forEach(playerScrolls => {
-      if (playerScrolls.responses) {
-        playerScrolls.responses.forEach(r => {
-          if (r.isGame) {
-            messages.push(r.text);
-          }
+    const buckets = new Map(); // promptText → { mode, responses: [{text, author}] }
+
+    Object.entries(roundData).forEach(([authorName, playerScrolls]) => {
+      if (!playerScrolls?.responses) return;
+      playerScrolls.responses.forEach(r => {
+        if (!r || !r.text || !r.text.trim()) return;
+        if (r.mode === 'filler') return;
+        const promptKey = r.prompt || '(scroll)';
+        if (!buckets.has(promptKey)) {
+          buckets.set(promptKey, { mode: r.mode, responses: [] });
+        }
+        const isSigned = r.mode === 'signed' || (r.mode === 'optional' && r.signed);
+        buckets.get(promptKey).responses.push({
+          text: r.text,
+          author: isSigned ? authorName : null,
         });
-      }
+      });
     });
-    // Shuffle so they're truly anonymous
-    for (let i = messages.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [messages[i], messages[j]] = [messages[j], messages[i]];
-    }
-    return messages;
+
+    // Shuffle responses inside each bucket so anonymity holds
+    const groups = Array.from(buckets.entries()).map(([prompt, bucket]) => {
+      const shuffled = [...bucket.responses];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return { prompt, mode: bucket.mode, responses: shuffled };
+    });
+    // Signed prompts first, then optional
+    groups.sort((a, b) => (a.mode === 'signed' ? -1 : 1) - (b.mode === 'signed' ? -1 : 1));
+    return groups;
   }, [scrolls, round]);
 
   // ============================================================
@@ -101,17 +104,28 @@ export default function HostDashboard() {
 
   async function handleStartGame() {
     const names = playerList.map(p => p.name);
-    if (names.length < config.numTraitors + 2) {
-      alert(`Need at least ${config.numTraitors + 2} players to start with ${config.numTraitors} traitors.`);
+    if (names.length < 5) {
+      alert('Need at least 5 players to start.');
       return;
     }
 
-    // Random assignment — host doesn't know who the traitors are
-    const shuffled = [...names].sort(() => Math.random() - 0.5);
-    const traitorNames = shuffled.slice(0, config.numTraitors);
+    // Weighted random traitor count: 80% → 4, 15% → 3, 5% → 5
+    let count = pickTraitorCount();
+    // Safety cap if there aren't enough players for the rolled count
+    if (count + 2 > names.length) count = Math.max(2, names.length - 2);
 
+    const shuffled = [...names].sort(() => Math.random() - 0.5);
+    const traitorNames = shuffled.slice(0, count);
+
+    await updateGameConfig({ numTraitors: count });
     await assignRoles(traitorNames);
-    await updateGameState({ phase: 'roleReveal', round: 1 });
+    // Lock the lobby and play the dramatic count reveal on the TV.
+    // The traitorReveal phase auto-advances to roleReveal after ~8s.
+    await updateGameState({
+      phase: 'traitorReveal',
+      round: 1,
+      rolledTraitorCount: count,
+    });
   }
 
   async function handleStartNight() {
@@ -124,7 +138,7 @@ export default function HostDashboard() {
     // Store prompts in Firebase so players can read them
     await set(ref(db, 'game/nightPhase'), {
       active: true,
-      prompts: prompts.map(p => ({ text: p.text, isGame: p.isGame })),
+      prompts: prompts.map(p => ({ text: p.text, mode: p.mode })),
     });
 
     await clearVotes();
@@ -135,7 +149,6 @@ export default function HostDashboard() {
       murderTarget: null,
       banishedPlayer: null,
       shieldBlocked: false,
-      currentScrollIndex: -1,
     });
     await startTimer(config.nightDuration);
   }
@@ -172,34 +185,34 @@ export default function HostDashboard() {
   }
 
   async function handleAdvanceToRoundtable() {
-    await updateGameState({ phase: 'roundtable', currentScrollIndex: -1 });
+    await updateGameState({ phase: 'roundtable' });
   }
 
-  async function handleNextScroll() {
-    const nextIdx = (currentScrollIndex ?? -1) + 1;
-    await updateGameState({ currentScrollIndex: nextIdx });
+  async function handleAdvanceToIRLVote() {
+    await updateGameState({ phase: 'irlVote', banishedPlayer: null });
   }
 
-  async function handleSkipScroll() {
-    const nextIdx = (currentScrollIndex ?? -1) + 1;
-    await updateGameState({ currentScrollIndex: nextIdx });
+  async function handleSelectBanished(name) {
+    if (!name) return;
+    await updateGameState({ phase: 'banishmentReveal', banishedPlayer: name });
   }
 
-  async function handleStartVoting() {
-    await clearVotes();
-    await updateGameState({ phase: 'voting' });
-    await startTimer(90); // 1.5 min to vote
-  }
-
-  async function handleRevealVotes() {
-    await clearTimer();
-    // Find player with most votes
-    if (voteTally.length > 0 && voteTally[0][1] > 0) {
-      await updateGameState({
-        phase: 'banishmentReveal',
-        banishedPlayer: voteTally[0][0],
-      });
+  async function handleNoBanishment() {
+    // Group couldn't agree / paper vote tied with no clear loser. Skip banishment.
+    let shieldWasBlocked = false;
+    if (murderTarget) {
+      const snap = await get(playersRef);
+      const targetPlayer = (snap.val() || {})[murderTarget];
+      if (targetPlayer?.status === 'alive') {
+        if (targetPlayer.shield) {
+          await updatePlayerShield(murderTarget, false);
+          shieldWasBlocked = true;
+        } else {
+          await updatePlayerStatus(murderTarget, 'murdered');
+        }
+      }
     }
+    await updateGameState({ phase: 'murderReveal', shieldBlocked: shieldWasBlocked, banishedPlayer: null });
   }
 
   async function handleConfirmBanishment() {
@@ -268,6 +281,31 @@ export default function HostDashboard() {
     setEndgameRevealed(prev => [...prev, playerName]);
     setRevealedRoles(prev => ({ ...prev, [playerName]: player.role }));
   }
+
+  // ============================================================
+  // TRAITOR REVEAL → ROLE REVEAL auto-advance after animation
+  // ============================================================
+  useEffect(() => {
+    if (phase !== 'traitorReveal') return;
+    const t = setTimeout(() => {
+      updateGameState({ phase: 'roleReveal' });
+    }, 8500); // ~8.5s for the full slot + flicker animation
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  // ============================================================
+  // NIGHT auto-advance when timer expires + 3s grace.
+  // Hostless: nobody has to click "End Night."
+  // ============================================================
+  useEffect(() => {
+    if (phase !== 'night' || !timerEnd) return;
+    const remaining = timerEnd - Date.now();
+    const t = setTimeout(() => {
+      if (typeof handleEndNight === 'function') handleEndNight();
+    }, Math.max(0, remaining) + 3000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, timerEnd]);
 
   // ============================================================
   // ADVANCE AFTER MURDER REVEAL — check win conditions
@@ -382,15 +420,21 @@ export default function HostDashboard() {
 
             {/* Config */}
             <div className="config-grid" style={{ marginBottom: 20 }}>
-              <div className="config-item">
+              <div className="config-item" style={{ gridColumn: 'span 1' }}>
                 <label>Number of Traitors</label>
-                <input
-                  type="number"
-                  className="number-input"
-                  min={2} max={5}
-                  value={config.numTraitors}
-                  onChange={e => updateGameConfig({ numTraitors: parseInt(e.target.value) || 3 })}
-                />
+                <div style={{
+                  padding: '10px 12px',
+                  background: 'var(--dark-gray)',
+                  border: '1px solid var(--stone)',
+                  borderRadius: 6,
+                  color: 'var(--gold)',
+                  fontFamily: 'var(--font-heading)',
+                  letterSpacing: 2,
+                  fontSize: '0.85rem',
+                  textAlign: 'center',
+                }}>
+                  ⚄ RANDOM
+                </div>
               </div>
               <div className="config-item">
                 <label>Night Phase Duration (sec)</label>
@@ -424,26 +468,33 @@ export default function HostDashboard() {
               </div>
             </div>
 
-            {/* Roles are randomly assigned — host is safe to play */}
+            {/* Hostless game info */}
             <div style={{
               marginBottom: 20, padding: 12, background: 'var(--dark-gray)', borderRadius: 8,
               textAlign: 'center',
             }}>
               <span style={{ fontFamily: 'var(--font-heading)', fontSize: '0.8rem', color: 'var(--text-dim)', letterSpacing: 1 }}>
-                Roles will be randomly assigned — the host can play too
+                No host needed — everyone plays. The lobby locks when the game begins.
               </span>
             </div>
 
             <button
               className="btn btn-primary btn-lg"
               onClick={handleStartGame}
-              disabled={playerList.length < 4}
+              disabled={playerList.length < 5}
               style={{ width: '100%' }}
             >
-              Start the Game ({playerList.length} players)
+              Begin the Game ({playerList.length} players)
             </button>
           </div>
         </div>
+      )}
+
+      {/* ============================================================
+          TRAITOR REVEAL — slot-machine count + portrait flicker
+          ============================================================ */}
+      {phase === 'traitorReveal' && (
+        <TraitorRevealAnimation count={rolledTraitorCount} players={players} />
       )}
 
       {/* ============================================================
@@ -631,7 +682,8 @@ export default function HostDashboard() {
       )}
 
       {/* ============================================================
-          ROUNDTABLE — ANONYMOUS SCROLL READING
+          ROUNDTABLE — ALL SIGNED + OPTIONAL RESPONSES ON THE TV
+          (Discussion happens IRL while everyone reads.)
           ============================================================ */}
       {phase === 'roundtable' && (
         <div className="fade-in">
@@ -645,60 +697,76 @@ export default function HostDashboard() {
             }}>
               THE ROUNDTABLE
             </div>
-            <p style={{ color: 'var(--text-dim)', marginTop: 5 }}>Anonymous scrolls from the night...</p>
+            <p style={{ color: 'var(--text-dim)', marginTop: 5 }}>
+              Read. Discuss. Accuse. (Vote on paper when you're ready.)
+            </p>
           </div>
 
-          {/* Current scroll */}
-          {currentScrollIndex >= 0 && currentScrollIndex < roundScrolls.length ? (
-            <div className="scroll-message" key={currentScrollIndex}>
-              "{roundScrolls[currentScrollIndex]}"
-            </div>
-          ) : currentScrollIndex >= roundScrolls.length && roundScrolls.length > 0 ? (
-            <div style={{ textAlign: 'center', padding: 30 }}>
-              <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-dim)', fontSize: '1.3rem', letterSpacing: 2 }}>
-                All scrolls have been read.
-              </div>
+          {roundtableGroups.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, fontFamily: 'var(--font-heading)', color: 'var(--text-dim)' }}>
+              No public scrolls this round.
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: 30 }}>
-              <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-dim)', fontSize: '1.1rem' }}>
-                {roundScrolls.length} scroll{roundScrolls.length !== 1 ? 's' : ''} to read. Press "Next Scroll" to begin.
+            roundtableGroups.map((group, idx) => (
+              <div key={idx} className="panel" style={{ margin: '20px 0' }}>
+                <div style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.75rem',
+                  color: group.mode === 'signed' ? 'var(--gold)' : 'var(--crimson-light)',
+                  letterSpacing: 2,
+                  marginBottom: 6,
+                }}>
+                  {group.mode === 'signed' ? 'SIGNED SCROLLS' : 'ANONYMOUS-OPTIONAL SCROLLS'}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-body)',
+                  fontStyle: 'italic',
+                  fontSize: '1.15rem',
+                  color: 'var(--gold)',
+                  marginBottom: 14,
+                }}>
+                  "{group.prompt}"
+                </div>
+                {group.responses.map((r, i) => (
+                  <div key={i} style={{
+                    padding: '10px 14px',
+                    margin: '8px 0',
+                    background: 'rgba(0,0,0,0.3)',
+                    borderLeft: `3px solid ${r.author ? 'var(--gold)' : 'var(--stone-light, #555)'}`,
+                    borderRadius: 4,
+                  }}>
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', color: 'var(--text)', lineHeight: 1.4 }}>
+                      {r.text}
+                    </div>
+                    <div style={{
+                      marginTop: 6,
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.7rem',
+                      letterSpacing: 2,
+                      color: r.author ? 'var(--gold)' : 'var(--text-dim)',
+                    }}>
+                      — {r.author || 'ANONYMOUS'}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            ))
           )}
-
-          <div style={{ textAlign: 'center', margin: '15px 0', color: 'var(--text-dim)', fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
-            Scroll {Math.max(0, (currentScrollIndex ?? -1) + 1)} of {roundScrolls.length}
-          </div>
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
 
           <div className="host-controls" style={{ marginTop: 20 }}>
-            <button
-              className="btn btn-gold"
-              onClick={handleNextScroll}
-              disabled={currentScrollIndex >= roundScrolls.length}
-            >
-              Next Scroll
-            </button>
-            <button
-              className="btn btn-dark"
-              onClick={handleSkipScroll}
-              disabled={currentScrollIndex >= roundScrolls.length}
-            >
-              Skip
-            </button>
-            <button className="btn btn-primary" onClick={handleStartVoting}>
-              Begin Banishment Vote
+            <button className="btn btn-primary btn-lg" onClick={handleAdvanceToIRLVote}>
+              Begin Banishment Vote (Paper)
             </button>
           </div>
         </div>
       )}
 
       {/* ============================================================
-          VOTING PHASE
+          IRL PAPER VOTE — tap whoever the room banished
           ============================================================ */}
-      {phase === 'voting' && (
+      {phase === 'irlVote' && (
         <div className="fade-in">
           <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <div style={{
@@ -707,34 +775,49 @@ export default function HostDashboard() {
               color: 'var(--crimson-light)',
               letterSpacing: 4,
             }}>
-              BANISHMENT VOTE
+              CAST YOUR VOTES ON PAPER
             </div>
-            <p style={{ color: 'var(--text-dim)', marginTop: 5 }}>
-              Cast your votes — who shall be banished?
+            <p style={{ color: 'var(--text-dim)', marginTop: 8, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' }}>
+              Write your banishment vote on a slip. When the room has agreed, tap the banished player below.
             </p>
-            <div style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', marginTop: 10, letterSpacing: 2 }}>
-              {Object.keys(votes).length} / {alivePlayers.length} VOTES CAST
+          </div>
+
+          <div className="panel" style={{ maxWidth: 720, margin: '20px auto' }}>
+            <h3 style={{
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--gold)',
+              fontSize: '0.9rem',
+              letterSpacing: 2,
+              marginBottom: 12,
+              textAlign: 'center',
+            }}>
+              WHO HAS BEEN BANISHED?
+            </h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              {alivePlayers.map(p => (
+                <button
+                  key={p.name}
+                  className="btn btn-dark"
+                  onClick={() => handleSelectBanished(p.name)}
+                  style={{ minWidth: 130, padding: '12px 16px' }}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <button className="btn btn-sm btn-dark" onClick={handleNoBanishment}>
+                No banishment this round
+              </button>
             </div>
           </div>
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
-
-          <div className="host-controls" style={{ marginTop: 20 }}>
-            <button
-              className="btn btn-primary"
-              onClick={handleRevealVotes}
-            >
-              Reveal Votes
-            </button>
-            <button className="btn btn-dark" onClick={handlePause}>
-              {paused ? 'Resume' : 'Pause'}
-            </button>
-          </div>
         </div>
       )}
 
       {/* ============================================================
-          BANISHMENT REVEAL
+          BANISHMENT REVEAL — paper vote already chosen, dramatic role reveal
           ============================================================ */}
       {phase === 'banishmentReveal' && (
         <div className="fade-in">
@@ -748,27 +831,6 @@ export default function HostDashboard() {
             }}>
               THE VOTES ARE IN
             </div>
-          </div>
-
-          {/* Vote results bars */}
-          <div style={{ maxWidth: 600, margin: '0 auto 30px' }}>
-            {voteTally.map(([name, count]) => (
-              <div className="vote-bar" key={name}>
-                <span className="name" style={{
-                  color: name === banishedPlayer ? 'var(--crimson-light)' : 'var(--text)',
-                  fontWeight: name === banishedPlayer ? 700 : 400,
-                }}>
-                  {name}
-                </span>
-                <div className="bar">
-                  <div
-                    className="bar-fill"
-                    style={{ width: `${(count / maxVotes) * 100}%` }}
-                  />
-                </div>
-                <span className="count">{count}</span>
-              </div>
-            ))}
           </div>
 
           {banishedPlayer && (
@@ -1004,6 +1066,142 @@ export default function HostDashboard() {
           <button className="btn btn-sm btn-dark" onClick={handleResetGame}>
             Reset
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// TRAITOR REVEAL ANIMATION
+// 1. Slot-machine of 3/4/5 spinning, locks on the rolled count.
+// 2. Portrait flicker — random highlights, never resolving (mystery preserved).
+// 3. "Check your phones" prompt before auto-advancing to roleReveal.
+// ============================================================
+function TraitorRevealAnimation({ count, players }) {
+  const [stage, setStage] = useState('spinning');
+  const [displayNum, setDisplayNum] = useState(3);
+  const [flickerIdx, setFlickerIdx] = useState(0);
+  const playerNames = Object.keys(players || {});
+
+  // Stage 1: spin numbers for ~2.5s, then lock
+  useEffect(() => {
+    if (stage !== 'spinning') return;
+    let i = 0;
+    const id = setInterval(() => {
+      setDisplayNum([3, 4, 5][i % 3]);
+      i++;
+    }, 80);
+    const stopAt = setTimeout(() => {
+      clearInterval(id);
+      setDisplayNum(count);
+      setStage('locked');
+    }, 2500);
+    return () => { clearInterval(id); clearTimeout(stopAt); };
+  }, [stage, count]);
+
+  // Stage 2: after lock pause, do portrait flicker for ~3.5s
+  useEffect(() => {
+    if (stage !== 'locked') return;
+    const start = setTimeout(() => setStage('flickering'), 1200);
+    return () => clearTimeout(start);
+  }, [stage]);
+
+  useEffect(() => {
+    if (stage !== 'flickering') return;
+    const id = setInterval(() => {
+      setFlickerIdx(Math.floor(Math.random() * Math.max(1, playerNames.length)));
+    }, 90);
+    const stopAt = setTimeout(() => {
+      clearInterval(id);
+      setStage('checkPhones');
+    }, 3500);
+    return () => { clearInterval(id); clearTimeout(stopAt); };
+  }, [stage, playerNames.length]);
+
+  return (
+    <div className="fade-in" style={{ textAlign: 'center', padding: '40px 20px', minHeight: 400 }}>
+      <div style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: '1rem',
+        color: 'var(--text-dim)',
+        letterSpacing: 4,
+        marginBottom: 30,
+      }}>
+        AMONG YOU WALK…
+      </div>
+
+      <div style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: 'clamp(6rem, 22vw, 14rem)',
+        color: stage === 'spinning' ? 'var(--text-dim)' : 'var(--crimson-light)',
+        letterSpacing: 4,
+        textShadow: stage !== 'spinning' ? '0 0 60px rgba(220,20,60,0.8), 0 0 120px rgba(139,0,0,0.5)' : 'none',
+        transition: 'color 0.6s, text-shadow 0.6s',
+        lineHeight: 1,
+        animation: stage === 'locked' || stage === 'flickering' ? 'candleFlicker 3s infinite' : 'none',
+      }}>
+        {displayNum}
+      </div>
+
+      <div style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: 'clamp(1.2rem, 3vw, 2rem)',
+        color: 'var(--crimson-light)',
+        letterSpacing: 6,
+        marginTop: 20,
+        opacity: stage === 'spinning' ? 0.4 : 1,
+        transition: 'opacity 0.6s',
+      }}>
+        TRAITORS
+      </div>
+
+      {(stage === 'flickering' || stage === 'checkPhones') && playerNames.length > 0 && (
+        <div style={{
+          marginTop: 40,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          justifyContent: 'center',
+          maxWidth: 720,
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }}>
+          {playerNames.map((name, i) => {
+            const isLit = stage === 'flickering' && i === flickerIdx;
+            return (
+              <div
+                key={name}
+                style={{
+                  padding: '6px 14px',
+                  background: isLit ? 'rgba(220,20,60,0.4)' : 'rgba(0,0,0,0.4)',
+                  border: `1px solid ${isLit ? 'var(--crimson-light)' : 'var(--stone)'}`,
+                  borderRadius: 6,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.85rem',
+                  letterSpacing: 1.5,
+                  color: isLit ? 'var(--crimson-light)' : 'var(--text-dim)',
+                  boxShadow: isLit ? '0 0 20px rgba(220,20,60,0.6)' : 'none',
+                  transition: 'background 0.05s, color 0.05s, box-shadow 0.05s',
+                }}
+              >
+                {name}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {stage === 'checkPhones' && (
+        <div className="fade-in" style={{
+          marginTop: 50,
+          fontFamily: 'var(--font-display)',
+          fontSize: 'clamp(1.4rem, 3vw, 2rem)',
+          color: 'var(--gold)',
+          letterSpacing: 4,
+          animation: 'candleFlicker 3s infinite',
+        }}>
+          CHECK YOUR PHONES
         </div>
       )}
     </div>

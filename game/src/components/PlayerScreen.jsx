@@ -3,7 +3,6 @@ import useGame from '../hooks/useGame';
 import useTimer from '../hooks/useTimer';
 import Timer from './Timer';
 import NightPhase from './NightPhase';
-import VotingScreen from './VotingScreen';
 import SpectatorMode from './SpectatorMode';
 import { addPlayer, updatePlayerPhoto } from '../firebase';
 
@@ -14,7 +13,7 @@ import { addPlayer, updatePlayerPhoto } from '../firebase';
 export default function PlayerScreen() {
   const {
     players, playerList, alivePlayers,
-    gameState, config, votes, traitorChat, murderVotes, nightPhase,
+    gameState, config, traitorChat, murderVotes, nightPhase,
     connected,
   } = useGame();
 
@@ -107,6 +106,29 @@ export default function PlayerScreen() {
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  // ============================================================
+  // GAME-IN-PROGRESS GATE — lobby locks once play begins
+  // ============================================================
+  if (!joined && phase !== 'lobby') {
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 24 }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '1.8rem',
+          color: 'var(--gold)',
+          letterSpacing: 4,
+          marginBottom: 15,
+          animation: 'candleFlicker 3s infinite',
+        }}>
+          THE GAME HAS BEGUN
+        </div>
+        <p style={{ color: 'var(--text-dim)', maxWidth: 320 }}>
+          The lobby is closed. Watch the TV with the others — the next game begins after this one ends.
+        </p>
+      </div>
+    );
   }
 
   // ============================================================
@@ -255,6 +277,32 @@ export default function PlayerScreen() {
               {p.name}
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // TRAITOR REVEAL — TV is playing the count animation.
+  // Phone shows ambient suspense; role pops on phase === 'roleReveal'.
+  // ============================================================
+  if (phase === 'traitorReveal') {
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="fade-in" style={{ textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.4rem',
+            color: 'var(--crimson-light)',
+            letterSpacing: 4,
+            marginBottom: 10,
+            animation: 'candleFlicker 3s infinite',
+          }}>
+            FATES ARE BEING SEALED
+          </div>
+          <p style={{ color: 'var(--text-dim)', marginTop: 10 }}>
+            Watch the TV…
+          </p>
         </div>
       </div>
     );
@@ -487,18 +535,29 @@ export default function PlayerScreen() {
   }
 
   // ============================================================
-  // VOTING
+  // IRL VOTE — paper voting in the room. Phone just says wait.
   // ============================================================
-  if (phase === 'voting') {
+  if (phase === 'irlVote') {
     return (
-      <VotingScreen
-        playerName={playerName}
-        alivePlayers={alivePlayers}
-        votes={votes}
-        timerEnd={timerEnd}
-        isTraitor={isTraitor}
-        hasShield={player?.shield}
-      />
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="fade-in" style={{ textAlign: 'center', maxWidth: 320 }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.6rem',
+            color: 'var(--crimson-light)',
+            letterSpacing: 4,
+            marginBottom: 15,
+          }}>
+            VOTE ON PAPER
+          </div>
+          <p style={{ color: 'var(--text-dim)', marginBottom: 20 }}>
+            Write your banishment vote on a slip. The room will tap the result on the TV.
+          </p>
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
+          </span>
+        </div>
+      </div>
     );
   }
 

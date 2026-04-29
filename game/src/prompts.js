@@ -1,40 +1,61 @@
 // ============================================================
-// PROMPT POOLS
-// Game-related prompts get displayed at roundtable (anonymous)
-// Fun/random prompts are cover — never displayed publicly
+// PROMPT POOLS — three modes
+//   'signed'   → shown on TV, name always attached. Owning your take.
+//   'optional' → shown on TV. Player chooses anonymous or signed.
+//   'filler'   → NEVER shown on TV. Pure cover so people are typing
+//                while the traitors confer in the secret chat.
 // ============================================================
 
-export const GAME_PROMPTS = [
-  "Name someone you trust and explain why",
-  "Name someone you suspect and explain why",
-  "If you were a traitor, who would you target first and why?",
-  "Describe suspicious behavior you noticed this round",
-  "Who is playing the best game right now and why?",
-  "Write an anonymous accusation against anyone",
-  "If you could save one person from banishment, who and why?",
-  "Who do you think is secretly a traitor and what gave them away?",
-  "Defend yourself without naming yourself — why should people trust you?",
-  "What alliance do you think exists that nobody is talking about?",
-  "Who has been too quiet tonight?",
-  "Who has been deflecting suspicion onto others?",
+// Always-signed: the answer is fun BECAUSE you have to own it.
+export const SIGNED_PROMPTS = [
+  "What's your read on the room right now?",
+  "Make a confident accusation — and own it.",
+  "Who is your strongest ally so far, and why?",
+  "Compliment the player you most suspect (be sincere).",
+  "Predict who will be murdered tonight.",
+  "Defend your strongest ally from suspicion.",
+  "Tell us why you should be trusted (be convincing).",
+  "Share an observation about another player's behavior.",
+  "Who at the table is playing the best game right now?",
+  "Pay a genuine compliment to another player.",
+  "If you had to bet money, who is a traitor?",
+  "What's the most suspicious thing you've heard tonight, and who said it?",
 ];
 
-export const FUN_PROMPTS = [
+// Optional: shown on TV, but the player can choose to sign or stay anonymous.
+// These are deliberately spicy — anonymity gives cover to faithful AND traitors.
+export const OPTIONAL_PROMPTS = [
+  "Name someone you suspect and explain why.",
+  "Write an accusation against anyone.",
+  "Who do you think is secretly a traitor — and what gave them away?",
+  "Who has been too quiet tonight?",
+  "Who has been deflecting suspicion onto others?",
+  "What alliance do you think exists that nobody is talking about?",
+  "Describe suspicious behavior you noticed this round.",
+  "If you had to vote out one person RIGHT NOW, who?",
+  "Who would you protect from murder if you could, and why?",
+  "Who is the last person you'd suspect — and why might you be wrong?",
+  "Whose body language is off tonight?",
+  "Plant a seed of doubt about anyone.",
+];
+
+// Filler: NEVER shown publicly. Everyone types so traitors have cover.
+const FUN_PROMPTS = [
   "What's your favorite food and why?",
   "What's the most embarrassing thing that's happened to you this year?",
-  "Rank the top 3 best dressed people at this party",
+  "Rank the top 3 best dressed people at this party.",
   "Who at this party is the worst liar?",
   "What's a hot take you have that would start an argument?",
   "If you could swap lives with anyone at this party for a day, who?",
   "What's a secret talent nobody here knows about?",
-  "Describe your perfect Sunday in 2 sentences",
+  "Describe your perfect Sunday in 2 sentences.",
   "What song would play if you walked into a room in slow motion?",
   "If this group was on a deserted island, who dies first?",
   "What's the last lie you told?",
   "Who at this party would survive an actual horror movie?",
 ];
 
-export const RANDOM_PROMPTS = [
+const RANDOM_PROMPTS = [
   "What's your go-to karaoke song?",
   "What's the worst date you've ever been on?",
   "If you could only eat one meal for the rest of your life, what is it?",
@@ -42,7 +63,7 @@ export const RANDOM_PROMPTS = [
   "What's the most unhinged thing you've ever done while drunk?",
   "If you had to delete every app on your phone except 3, which do you keep?",
   "What's a hill you will die on?",
-  "Describe your worst roommate experience in one sentence",
+  "Describe your worst roommate experience in one sentence.",
   "What's your most irrational fear?",
   "If you won the lottery tomorrow, what's the first thing you buy?",
   "What's the most overrated restaurant or bar in Tulsa?",
@@ -51,7 +72,7 @@ export const RANDOM_PROMPTS = [
   "If your life had a theme song, what would it be?",
   "What's something you're weirdly competitive about?",
   "What's a skill you wish you had?",
-  "Describe your toxic trait in one sentence",
+  "Describe your toxic trait in one sentence.",
   "What's the craziest thing on your bucket list?",
   "If you could time travel to one year, which year and why?",
   "What's the most money you've ever wasted on something stupid?",
@@ -62,43 +83,39 @@ export const RANDOM_PROMPTS = [
   "What's the most chaotic group chat you're in and why?",
 ];
 
-// Combine fun + random into one "filler" pool
 const FILLER_PROMPTS = [...FUN_PROMPTS, ...RANDOM_PROMPTS];
 
 // ============================================================
 // PROMPT SELECTION
-// Picks prompts for a round, skewing heavily toward filler.
-// Returns array of { text, isGame } objects.
-// usedPrompts: Set of already-used prompt texts this game.
+// Each round picks: 1 signed + 1 optional + (count - 2) filler.
+// If count < 2, gracefully degrades to filler-only.
+// Returns array of { text, mode } objects, shuffled.
 // ============================================================
 export function selectPrompts(count, usedPrompts = new Set()) {
-  // 1-2 game prompts, rest are filler
-  const numGame = Math.min(Math.floor(Math.random() * 2) + 1, count); // 1 or 2
-  const numFiller = count - numGame;
-
-  const availableGame = GAME_PROMPTS.filter(p => !usedPrompts.has(p));
-  const availableFiller = FILLER_PROMPTS.filter(p => !usedPrompts.has(p));
-
-  // If we've used all prompts, allow repeats from the larger pools
-  const gamePool = availableGame.length >= numGame ? availableGame : GAME_PROMPTS;
-  const fillerPool = availableFiller.length >= numFiller ? availableFiller : FILLER_PROMPTS;
-
   const picked = [];
 
-  // Pick game prompts
-  const shuffledGame = shuffle([...gamePool]);
-  for (let i = 0; i < numGame && i < shuffledGame.length; i++) {
-    picked.push({ text: shuffledGame[i], isGame: true });
+  if (count >= 1) {
+    picked.push({ text: pickFresh(SIGNED_PROMPTS, usedPrompts), mode: 'signed' });
+  }
+  if (count >= 2) {
+    picked.push({ text: pickFresh(OPTIONAL_PROMPTS, usedPrompts), mode: 'optional' });
   }
 
-  // Pick filler prompts
-  const shuffledFiller = shuffle([...fillerPool]);
-  for (let i = 0; i < numFiller && i < shuffledFiller.length; i++) {
-    picked.push({ text: shuffledFiller[i], isGame: false });
+  const fillerNeeded = Math.max(0, count - picked.length);
+  const fillerPool = FILLER_PROMPTS.filter(p => !usedPrompts.has(p));
+  const candidates = fillerPool.length >= fillerNeeded ? fillerPool : FILLER_PROMPTS;
+  const shuffledFiller = shuffle([...candidates]);
+  for (let i = 0; i < fillerNeeded && i < shuffledFiller.length; i++) {
+    picked.push({ text: shuffledFiller[i], mode: 'filler' });
   }
 
-  // Shuffle the final list so game/filler are interleaved randomly
   return shuffle(picked);
+}
+
+function pickFresh(pool, usedPrompts) {
+  const fresh = pool.filter(p => !usedPrompts.has(p));
+  const candidates = fresh.length > 0 ? fresh : pool;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function shuffle(arr) {
@@ -107,4 +124,17 @@ function shuffle(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+// ============================================================
+// TRAITOR COUNT — weighted random
+//   80% → 4 traitors
+//   15% → 3 traitors
+//    5% → 5 traitors (rare chaos)
+// ============================================================
+export function pickTraitorCount() {
+  const r = Math.random();
+  if (r < 0.05) return 5;
+  if (r < 0.20) return 3;
+  return 4;
 }
