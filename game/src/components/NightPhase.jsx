@@ -163,8 +163,10 @@ export default function NightPhase({
   const murderVoteEntries = Object.entries(murderVotes || {});
   const myMurderVote = murderVotes?.[playerName]?.target || murderTarget;
 
-  // Non-traitor targets for murder (alive, non-traitor)
-  const validTargets = alivePlayers.filter(p => p.role !== 'traitor');
+  // Murder targets: alive, non-traitor, and NOT shielded (shields are
+  // earned in the challenge round and protect that player from murder).
+  const validTargets = alivePlayers.filter(p => p.role !== 'traitor' && !p.shield);
+  const shieldedFaithful = alivePlayers.filter(p => p.role !== 'traitor' && p.shield);
 
   return (
     <div className="player-screen" style={{
@@ -523,22 +525,51 @@ export default function NightPhase({
               MURDER VOTE
             </h3>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
-              All traitors must agree on a target. Majority rules.
+              Vote early, change your mind freely. Majority rules. Ties at the end → cpu picks at random from the tied targets.
             </p>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {validTargets.map(p => (
-                <button
-                  key={p.name}
-                  className={`btn btn-sm ${myMurderVote === p.name ? 'btn-primary' : 'btn-dark'}`}
-                  onClick={() => handleMurderVote(p.name)}
-                  style={{ fontSize: '0.8rem', position: 'relative' }}
-                >
-                  {p.name}
-                  {p.shield && <span style={{ marginLeft: 4 }}>🛡️</span>}
-                </button>
-              ))}
-            </div>
+            {validTargets.length === 0 ? (
+              <p style={{ color: 'var(--crimson-light)', fontStyle: 'italic', fontSize: '0.9rem' }}>
+                No valid targets — every faithful is shielded tonight.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {validTargets.map(p => (
+                  <button
+                    key={p.name}
+                    className={`btn btn-sm ${myMurderVote === p.name ? 'btn-primary' : 'btn-dark'}`}
+                    onClick={() => handleMurderVote(p.name)}
+                    style={{ fontSize: '0.8rem', position: 'relative' }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {shieldedFaithful.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: 1.5, marginBottom: 6 }}>
+                  PROTECTED TONIGHT
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {shieldedFaithful.map(p => (
+                    <span key={p.name} style={{
+                      padding: '4px 10px',
+                      fontSize: '0.78rem',
+                      background: 'rgba(218,165,32,0.08)',
+                      border: '1px solid rgba(218,165,32,0.4)',
+                      borderRadius: 4,
+                      color: 'var(--gold)',
+                      fontFamily: 'var(--font-heading)',
+                      letterSpacing: 1,
+                    }}>
+                      🛡️ {p.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Show current murder vote status */}
             {murderVoteEntries.length > 0 && (

@@ -30,16 +30,16 @@ export default function HostDashboard() {
   const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, paused, rolledTraitorCount } = gameState;
 
   const [newPlayerName, setNewPlayerName] = useState('');
-  const [shieldTarget, setShieldTarget] = useState('');
   const [revealedRoles, setRevealedRoles] = useState({});
   const [usedPrompts, setUsedPrompts] = useState(new Set());
   const [endgameRevealed, setEndgameRevealed] = useState([]);
 
   // ============================================================
-  // ROUNDTABLE GROUPS — one bucket per public prompt, with all responses.
-  // Filler responses are intentionally never surfaced.
+  // ROUNDTABLE GROUPS — one bucket per public prompt, with a SAMPLE
+  // of responses (not every player's response). Filler is never shown.
   // Each response = { text, author } where author is null when anonymous.
   // ============================================================
+  const MAX_RESPONSES_PER_PROMPT = 6;
   const roundtableGroups = useMemo(() => {
     const roundData = scrolls[round] || {};
     const buckets = new Map(); // promptText → { mode, responses: [{text, author}] }
@@ -61,14 +61,21 @@ export default function HostDashboard() {
       });
     });
 
-    // Shuffle responses inside each bucket so anonymity holds
+    // Shuffle + sample inside each bucket. Anonymous responses stay anonymous,
+    // and not-everyone's-shown means traitors who skipped don't stick out.
     const groups = Array.from(buckets.entries()).map(([prompt, bucket]) => {
       const shuffled = [...bucket.responses];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      return { prompt, mode: bucket.mode, responses: shuffled };
+      const sampled = shuffled.slice(0, MAX_RESPONSES_PER_PROMPT);
+      return {
+        prompt,
+        mode: bucket.mode,
+        responses: sampled,
+        totalCount: bucket.responses.length,
+      };
     });
     // Signed prompts first, then optional
     groups.sort((a, b) => (a.mode === 'signed' ? -1 : 1) - (b.mode === 'signed' ? -1 : 1));
@@ -157,20 +164,26 @@ export default function HostDashboard() {
     await clearTimer();
     await set(ref(db, 'game/nightPhase'), { active: false, prompts: [] });
 
-    // Determine murder target from traitor votes (majority)
+    // Tally traitor murder votes. Ignore votes for shielded or non-alive
+    // players in case a shield was awarded after the vote was cast.
+    const validNames = new Set(
+      alivePlayers.filter(p => !p.shield && p.role !== 'traitor').map(p => p.name)
+    );
     const tally = {};
     Object.values(murderVotes).forEach(v => {
-      tally[v.target] = (tally[v.target] || 0) + 1;
+      if (v?.target && validNames.has(v.target)) {
+        tally[v.target] = (tally[v.target] || 0) + 1;
+      }
     });
 
     let target = null;
-    let maxCount = 0;
-    Object.entries(tally).forEach(([name, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        target = name;
-      }
-    });
+    const entries = Object.entries(tally);
+    if (entries.length > 0) {
+      const maxCount = Math.max(...entries.map(([, c]) => c));
+      const tied = entries.filter(([, c]) => c === maxCount).map(([name]) => name);
+      // Random tie-break (also handles single-leader as 1-element array).
+      target = tied[Math.floor(Math.random() * tied.length)];
+    }
 
     // Store murder target but don't apply yet — murder reveal comes after roundtable
     await updateGameState({
@@ -644,30 +657,29 @@ export default function HostDashboard() {
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
 
-          <div className="panel" style={{ maxWidth: 400, margin: '20px auto' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 10, letterSpacing: 2 }}>
-              AWARD SHIELD
+          <div className="panel" style={{ maxWidth: 720, margin: '20px auto' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 4, letterSpacing: 2, textAlign: 'center' }}>
+              AWARD A SHIELD
             </h3>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <select
-                className="select"
-                value={shieldTarget}
-                onChange={e => setShieldTarget(e.target.value)}
-                style={{ flex: 1 }}
-              >
-                <option value="">Select winner...</option>
-                {alivePlayers.filter(p => !p.shield).map(p => (
-                  <option key={p.name} value={p.name}>{p.name}</option>
-                ))}
-              </select>
-              <button
-                className="btn btn-gold btn-sm"
-                onClick={() => { handleAwardShield(shieldTarget); setShieldTarget(''); }}
-                disabled={!shieldTarget}
-              >
-                Award
-              </button>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 14, textAlign: 'center' }}>
+              Tap the drinking-game winner. Shielded players are protected from murder tonight and won't appear in the traitors' target list.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              {alivePlayers.map(p => (
+                <button
+                  key={p.name}
+                  className={`btn btn-sm ${p.shield ? 'btn-gold' : 'btn-dark'}`}
+                  onClick={() => p.shield ? handleRemoveShield(p.name) : handleAwardShield(p.name)}
+                  style={{ minWidth: 110, padding: '10px 14px' }}
+                  title={p.shield ? 'Tap to remove shield' : 'Tap to award shield'}
+                >
+                  {p.shield ? '🛡️ ' : ''}{p.name}
+                </button>
+              ))}
             </div>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', marginTop: 12, textAlign: 'center', fontStyle: 'italic' }}>
+              Tapping a shielded player removes the shield (in case you tapped the wrong person).
+            </p>
           </div>
 
           <div className="host-controls" style={{ marginTop: 20 }}>
@@ -710,13 +722,29 @@ export default function HostDashboard() {
             roundtableGroups.map((group, idx) => (
               <div key={idx} className="panel" style={{ margin: '20px 0' }}>
                 <div style={{
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '0.75rem',
-                  color: group.mode === 'signed' ? 'var(--gold)' : 'var(--crimson-light)',
-                  letterSpacing: 2,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                   marginBottom: 6,
                 }}>
-                  {group.mode === 'signed' ? 'SIGNED SCROLLS' : 'ANONYMOUS-OPTIONAL SCROLLS'}
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '0.75rem',
+                    color: group.mode === 'signed' ? 'var(--gold)' : 'var(--crimson-light)',
+                    letterSpacing: 2,
+                  }}>
+                    {group.mode === 'signed' ? 'SIGNED SCROLLS' : 'ANONYMOUS-OPTIONAL SCROLLS'}
+                  </div>
+                  {group.totalCount > group.responses.length && (
+                    <div style={{
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.7rem',
+                      color: 'var(--text-dim)',
+                      letterSpacing: 1.5,
+                    }}>
+                      A SAMPLE OF {group.responses.length} / {group.totalCount}
+                    </div>
+                  )}
                 </div>
                 <div style={{
                   fontFamily: 'var(--font-body)',
