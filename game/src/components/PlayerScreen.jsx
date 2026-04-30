@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import useGame from '../hooks/useGame';
-import useTimer from '../hooks/useTimer';
 import Timer from './Timer';
 import NightPhase from './NightPhase';
 import SpectatorMode from './SpectatorMode';
 import PlayerPortrait from './PlayerPortrait';
 import { PRESET_PLAYERS } from '../presetPlayers';
-import { addPlayer, updatePlayerPhoto } from '../firebase';
+import { addPlayer } from '../firebase';
 
 // ============================================================
 // PLAYER SCREEN — the mobile phone experience
@@ -26,8 +25,6 @@ export default function PlayerScreen() {
   const [nameInput, setNameInput] = useState('');
   const [roleRevealed, setRoleRevealed] = useState(false);
   const [showRole, setShowRole] = useState(false);
-  const fileInputRef = useRef(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const player = players[playerName] || null;
   const isAlive = player?.status === 'alive';
@@ -75,43 +72,6 @@ export default function PlayerScreen() {
   async function handleCustomNameSubmit() {
     await handleJoinWithName(nameInput);
     setNameInput('');
-  }
-
-  // Compress and upload photo
-  async function handlePhotoUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file || !playerName) return;
-    setUploadingPhoto(true);
-    try {
-      const dataUrl = await compressImage(file, 150, 0.7);
-      await updatePlayerPhoto(playerName, dataUrl);
-    } catch (err) {
-      console.error('Photo upload failed:', err);
-    }
-    setUploadingPhoto(false);
-  }
-
-  function compressImage(file, maxSize, quality) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          // Crop to square from center
-          const size = Math.min(img.width, img.height);
-          const sx = (img.width - size) / 2;
-          const sy = (img.height - size) / 2;
-          canvas.width = maxSize;
-          canvas.height = maxSize;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
   }
 
   // ============================================================
@@ -177,66 +137,31 @@ export default function PlayerScreen() {
           The Traitors
         </div>
 
-        <div className="panel" style={{ margin: '30px 0' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 5 }}>
-            Welcome, {playerName}
+        <div className="panel" style={{ margin: '24px 0', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 14, fontSize: '0.85rem' }}>
+            WELCOME
           </div>
-          <p style={{ color: 'var(--text-dim)' }}>Waiting for the host to start the game...</p>
-          <div style={{ marginTop: 15, color: 'var(--text-dim)', fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
-            {playerList.length} player{playerList.length !== 1 ? 's' : ''} connected
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+            <PlayerPortrait name={playerName} photo={player?.photo} width={180} />
           </div>
-        </div>
-
-        {/* Photo upload */}
-        <div className="panel" style={{ margin: '0 0 30px', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 10, fontSize: '0.85rem' }}>
-            ADD YOUR HEADSHOT
-          </div>
-          {player?.photo ? (
-            <div style={{ marginBottom: 10 }}>
-              <img
-                src={player.photo}
-                alt={playerName}
-                style={{
-                  width: 100, height: 100, borderRadius: '50%',
-                  border: '3px solid var(--gold-dark)',
-                  objectFit: 'cover',
-                }}
-              />
-            </div>
-          ) : (
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
-              Upload a photo so everyone knows who you are
-            </p>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            onChange={handlePhotoUpload}
-            style={{ display: 'none' }}
-          />
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button
-              className="btn btn-sm btn-gold"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingPhoto}
-            >
-              {uploadingPhoto ? 'Uploading...' : player?.photo ? 'Change Photo' : 'Take Selfie'}
-            </button>
+          <p style={{ color: 'var(--text-dim)', fontSize: '1rem', marginBottom: 6 }}>
+            Waiting for the game to begin…
+          </p>
+          <div style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2 }}>
+            {playerList.length} PLAYER{playerList.length !== 1 ? 'S' : ''} CONNECTED
           </div>
         </div>
 
-        <div className="player-list" style={{ justifyContent: 'center' }}>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          justifyContent: 'center',
+          padding: '0 8px',
+        }}>
           {playerList.map(p => (
-            <div key={p.name} className="player-chip">
-              {p.photo ? (
-                <img src={p.photo} alt={p.name} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
-              ) : (
-                <span className="dot" />
-              )}
-              {p.name}
+            <div key={p.name} style={{ width: 64 }}>
+              <PlayerPortrait name={p.name} photo={p.photo} width={64} />
             </div>
           ))}
         </div>
