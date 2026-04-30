@@ -1,34 +1,27 @@
 // ============================================================
 // PRESET PLAYERS
-// The roster of expected guests. Drop a matching headshot in
-// game/public/headshots/<name>.png to have it picked up
-// automatically (lowercase, hyphens-for-spaces).
+// The 18 expected guests for Jazzy's 25th. The roster matches
+// the framed portraits in game/public/headshots/<slug>.jpg.
+// (Slug = lowercase, hyphens for spaces.)
 // ============================================================
 
 export const PRESET_PLAYERS = [
-  'Jack',
-  'Isabel',
-  'Keegan',
-  'Tatum',
-  'Sydney',
-  'Carson',
-  'Ellie',
-  'Chandler',
-  'Josh',
-  'Gavin',
-  'Ryan',
-  'Bailey',
-  'Aubrey',
   'Aaron',
-  'Katie',
-  'Isabelle',
+  'Aubrey',
+  'Bailey',
   'Braxton',
-  'Isaac',
+  'Ellie',
   'Gaige',
+  'Gavin',
+  'Gunnar',
+  'Isaac',
+  'Isabel',
+  'Jack',
+  'Jazzy',
+  'Katie',
+  'Keegan',
+  'Ryan',
   'Shelley',
-  'Gunner',
-  'Natalia',
-  'David',
-  'Hallie',
-  'Fred',
+  'Sydney',
+  'Tatum',
 ];
