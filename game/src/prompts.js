@@ -127,14 +127,11 @@ function shuffle(arr) {
 }
 
 // ============================================================
-// TRAITOR COUNT — weighted random
+// TRAITOR COUNT — weighted random for a 12–18 player game
 //   80% → 4 traitors
-//   15% → 3 traitors
-//    5% → 5 traitors (rare chaos)
+//   20% → 3 traitors
+// (5 traitors disabled — too many for the actual headcount.)
 // ============================================================
 export function pickTraitorCount() {
-  const r = Math.random();
-  if (r < 0.05) return 5;
-  if (r < 0.20) return 3;
-  return 4;
+  return Math.random() < 0.20 ? 3 : 4;
 }

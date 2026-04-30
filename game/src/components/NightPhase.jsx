@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Timer from './Timer';
+import PlayerPortrait from './PlayerPortrait';
 import useTimer from '../hooks/useTimer';
 import {
   submitScrolls, sendTraitorMessage, submitMurderVote,
@@ -533,39 +534,59 @@ export default function NightPhase({
                 No valid targets — every faithful is shielded tonight.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {validTargets.map(p => (
-                  <button
-                    key={p.name}
-                    className={`btn btn-sm ${myMurderVote === p.name ? 'btn-primary' : 'btn-dark'}`}
-                    onClick={() => handleMurderVote(p.name)}
-                    style={{ fontSize: '0.8rem', position: 'relative' }}
-                  >
-                    {p.name}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {validTargets.map(p => {
+                  const selected = myMurderVote === p.name;
+                  return (
+                    <button
+                      key={p.name}
+                      className={`btn ${selected ? 'btn-primary' : 'btn-dark'}`}
+                      onClick={() => handleMurderVote(p.name)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '8px 10px',
+                        minWidth: 78,
+                      }}
+                    >
+                      <PlayerPortrait name={p.name} photo={p.photo} size={48} glow={selected} />
+                      <span style={{ fontSize: '0.72rem', letterSpacing: 0.5 }}>{p.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
             {shieldedFaithful.length > 0 && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 14 }}>
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: 1.5, marginBottom: 6 }}>
                   PROTECTED TONIGHT
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {shieldedFaithful.map(p => (
-                    <span key={p.name} style={{
-                      padding: '4px 10px',
-                      fontSize: '0.78rem',
+                    <div key={p.name} style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      padding: '4px 8px',
                       background: 'rgba(218,165,32,0.08)',
                       border: '1px solid rgba(218,165,32,0.4)',
                       borderRadius: 4,
-                      color: 'var(--gold)',
-                      fontFamily: 'var(--font-heading)',
-                      letterSpacing: 1,
+                      opacity: 0.8,
                     }}>
-                      🛡️ {p.name}
-                    </span>
+                      <PlayerPortrait name={p.name} photo={p.photo} size={40} />
+                      <span style={{
+                        fontSize: '0.7rem',
+                        color: 'var(--gold)',
+                        fontFamily: 'var(--font-heading)',
+                        letterSpacing: 0.5,
+                      }}>
+                        🛡️ {p.name}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
