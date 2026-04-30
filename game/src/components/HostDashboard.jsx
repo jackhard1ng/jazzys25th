@@ -19,7 +19,7 @@ export default function HostDashboard() {
     connected,
   } = useGame();
 
-  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, paused, rolledTraitorCount } = gameState;
+  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, rolledTraitorCount } = gameState;
 
   const [newPlayerName, setNewPlayerName] = useState('');
   const [revealedRoles, setRevealedRoles] = useState({});
@@ -108,10 +108,14 @@ export default function HostDashboard() {
       return;
     }
 
-    // Weighted random traitor count: 80% → 4, 15% → 3, 5% → 5
-    let count = pickTraitorCount();
-    // Safety cap if there aren't enough players for the rolled count
-    if (count + 2 > names.length) count = Math.max(2, names.length - 2);
+    // Player-count-aware traitor pick. Prevents the "7 players, 4
+    // traitors, game ends after round 1 at parity" disaster.
+    let count = pickTraitorCount(names.length);
+    // Hard safety cap: traitors must always be strictly fewer than
+    // (faithful - 1) so the faithful have at least one banishment
+    // of margin before parity ends the game.
+    const maxAllowed = Math.max(1, Math.floor((names.length - 1) / 2));
+    if (count > maxAllowed) count = maxAllowed;
 
     const shuffled = [...names].sort(() => Math.random() - 0.5);
     const traitorNames = shuffled.slice(0, count);
@@ -220,23 +224,26 @@ export default function HostDashboard() {
     await updateGameState({ phase: 'murderReveal', shieldBlocked: shieldWasBlocked, banishedPlayer: null });
   }
 
+  // Step 1 of banishment: just reveal the role on the screen.
+  // Player gets marked banished in DB, role pops in revealedRoles.
+  // Phase stays on banishmentReveal so the room can savor the moment.
   async function handleConfirmBanishment() {
     const name = banishedPlayer;
     if (!name) return;
-    // Auto-detect role from Firebase — host never needs to know
     const snap = await get(playersRef);
     const currentPlayers = snap.val() || {};
     const role = currentPlayers[name]?.role || 'faithful';
     await updatePlayerStatus(name, 'banished');
     setRevealedRoles(prev => ({ ...prev, [name]: role }));
+  }
 
-    // Apply the murder now (murder reveal comes after banishment)
+  // Step 2 of banishment: apply the murder + advance to murder reveal.
+  async function handleContinueAfterBanishment() {
     let shieldWasBlocked = false;
     if (murderTarget) {
       const snap = await get(playersRef);
       const currentPlayers = snap.val() || {};
       const targetPlayer = currentPlayers[murderTarget];
-
       if (targetPlayer?.status === 'alive') {
         if (targetPlayer?.shield) {
           await updatePlayerShield(murderTarget, false);
@@ -247,7 +254,6 @@ export default function HostDashboard() {
       }
       // If target was just banished, murder doesn't apply
     }
-
     await updateGameState({ phase: 'murderReveal', shieldBlocked: shieldWasBlocked });
   }
 
@@ -270,10 +276,6 @@ export default function HostDashboard() {
 
   async function handleManualEliminate(playerName, type) {
     await updatePlayerStatus(playerName, type);
-  }
-
-  async function handlePause() {
-    await updateGameState({ paused: !paused });
   }
 
   async function handleTriggerEndgame(winner) {
@@ -351,13 +353,6 @@ export default function HostDashboard() {
       <div className="tv-subtitle" style={{ marginBottom: 10 }}>
         Jazzy's Birthday — {phase === 'lobby' ? 'Waiting for Players' : `Round ${round}`}
       </div>
-
-      {/* PAUSE INDICATOR */}
-      {paused && (
-        <div style={{ textAlign: 'center', padding: 10, background: 'rgba(212,175,55,0.2)', borderRadius: 8, margin: '10px 0' }}>
-          <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.2rem', color: 'var(--gold)', letterSpacing: 2 }}>⏸ GAME PAUSED</span>
-        </div>
-      )}
 
       {/* TIMER */}
       <Timer timerEnd={timerEnd} />
@@ -538,9 +533,6 @@ export default function HostDashboard() {
             <button className="btn btn-primary" onClick={handleEndNight}>
               End Night Phase
             </button>
-            <button className="btn btn-dark" onClick={handlePause}>
-              {paused ? 'Resume' : 'Pause'}
-            </button>
           </div>
         </div>
       )}
@@ -551,10 +543,10 @@ export default function HostDashboard() {
       {phase === 'murderReveal' && (
         <div className="fade-in">
           {shieldBlocked ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ textAlign: 'center', padding: '30px 20px' }}>
               <div style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: '2.5rem',
+                fontSize: 'clamp(2rem, 5vw, 3rem)',
                 color: 'var(--gold)',
                 letterSpacing: 4,
                 animation: 'shieldBlock 1s ease, candleFlicker 3s infinite',
@@ -562,52 +554,101 @@ export default function HostDashboard() {
               }}>
                 A SHIELD HAS BEEN PLAYED
               </div>
-              <div style={{ fontSize: '1.5rem', color: 'var(--text)', margin: '20px 0' }}>
+              {murderTarget && (
+                <div style={{ position: 'relative', display: 'inline-block', margin: '0 auto 20px' }}>
+                  <PlayerPortrait name={murderTarget} photo={players[murderTarget]?.photo} width={220} glow />
+                  <div style={{
+                    position: 'absolute',
+                    top: -10,
+                    right: -10,
+                    fontSize: '3rem',
+                    filter: 'drop-shadow(0 0 14px rgba(218,165,32,1))',
+                  }}>🛡️</div>
+                </div>
+              )}
+              <div style={{ fontSize: '1.4rem', color: 'var(--text)', margin: '14px 0' }}>
                 The traitors targeted <strong style={{ color: 'var(--gold)' }}>{murderTarget}</strong>
               </div>
-              <div style={{ fontSize: '1.3rem', color: 'var(--gold)' }}>
-                No one was murdered.
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', letterSpacing: 3 }}>
+                BUT THE SHIELD HELD.
               </div>
             </div>
           ) : murderTarget && players[murderTarget]?.status === 'banished' ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ textAlign: 'center', padding: '30px 20px' }}>
               <div style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: '1.8rem',
                 color: 'var(--text-dim)',
                 letterSpacing: 4,
-                marginBottom: 30,
+                marginBottom: 24,
               }}>
                 The traitors targeted...
               </div>
+              <div style={{ display: 'inline-block', margin: '0 auto 14px' }}>
+                <PlayerPortrait name={murderTarget} photo={players[murderTarget]?.photo} width={220} faded />
+              </div>
               <div className="cinematic-name">{murderTarget}</div>
-              <div style={{ fontSize: '1.3rem', color: 'var(--gold)', marginTop: 15 }}>
-                But they were already banished.
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--gold)', marginTop: 14, letterSpacing: 3 }}>
+                BUT THEY WERE ALREADY BANISHED.
               </div>
             </div>
           ) : murderTarget ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ textAlign: 'center', padding: '30px 20px' }}>
               <div style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: '1.8rem',
                 color: 'var(--text-dim)',
                 letterSpacing: 4,
-                marginBottom: 30,
+                marginBottom: 24,
               }}>
-                The traitors have struck...
+                The traitors have struck…
               </div>
-              <div className="cinematic-name">{murderTarget}</div>
-              <div style={{ fontSize: '1.5rem', color: 'var(--crimson-light)', marginTop: 10 }}>
-                has been murdered.
+              <div style={{ position: 'relative', display: 'inline-block', margin: '0 auto 16px' }}>
+                <PlayerPortrait
+                  name={murderTarget}
+                  photo={players[murderTarget]?.photo}
+                  width={260}
+                  faded
+                  border="3px solid var(--crimson-light)"
+                />
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '6rem',
+                  transform: 'rotate(-22deg)',
+                  filter: 'drop-shadow(0 0 18px rgba(139,0,0,0.95))',
+                  pointerEvents: 'none',
+                }}>🗡️</div>
+              </div>
+              <div className="cinematic-name" style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'clamp(2rem, 6vw, 3.4rem)',
+                color: 'var(--crimson-light)',
+                textShadow: '0 0 30px rgba(139,0,0,0.8)',
+                letterSpacing: 4,
+              }}>
+                {murderTarget}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1.6rem',
+                color: 'var(--crimson-light)',
+                marginTop: 10,
+                letterSpacing: 3,
+              }}>
+                HAS BEEN MURDERED.
               </div>
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: 'var(--text-dim)', letterSpacing: 4 }}>
-                The traitors could not agree...
+                The traitors could not agree…
               </div>
-              <div style={{ fontSize: '1.3rem', color: 'var(--gold)', marginTop: 15 }}>
-                No one was murdered.
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--gold)', marginTop: 15, letterSpacing: 3 }}>
+                NO ONE WAS MURDERED.
               </div>
             </div>
           )}
@@ -887,38 +928,120 @@ export default function HostDashboard() {
             </div>
           </div>
 
-          {banishedPlayer && (
-            <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <div className="cinematic-name" style={{ fontSize: '3rem' }}>
-                {banishedPlayer}
-              </div>
-              <div style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '1.5rem',
-                color: 'var(--text)',
-                letterSpacing: 3,
-                marginBottom: 20,
-              }}>
-                YOU HAVE BEEN BANISHED
-              </div>
-              <div style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '1.3rem',
-                color: 'var(--gold)',
-                letterSpacing: 3,
-                marginBottom: 30,
-              }}>
-                REVEAL YOUR LOYALTY
-              </div>
+          {banishedPlayer && (() => {
+            const revealedRole = revealedRoles[banishedPlayer];
+            const wasRevealed = !!revealedRole;
+            const roleColor = revealedRole === 'traitor' ? 'var(--crimson-light)' : 'var(--gold)';
+            return (
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <div style={{ position: 'relative', display: 'inline-block', marginBottom: 16 }}>
+                  <PlayerPortrait
+                    name={banishedPlayer}
+                    photo={players[banishedPlayer]?.photo}
+                    width={260}
+                    border={wasRevealed ? `4px solid ${roleColor}` : '3px solid var(--text-dim)'}
+                    glow={wasRevealed}
+                    faded={wasRevealed}
+                  />
+                  {/* X overlay always */}
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '8rem',
+                    fontFamily: 'var(--font-display)',
+                    color: 'var(--crimson-light)',
+                    textShadow: '0 0 20px rgba(139,0,0,0.95)',
+                    pointerEvents: 'none',
+                  }}>✕</div>
+                  {/* Role badge after reveal */}
+                  {wasRevealed && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: -14,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: roleColor,
+                      color: 'var(--black, #0a0a0a)',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.95rem',
+                      letterSpacing: 4,
+                      padding: '6px 18px',
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                      animation: 'fadeInScale 0.6s ease',
+                    }}>
+                      {revealedRole === 'traitor' ? '🗡️ TRAITOR' : '✨ FAITHFUL'}
+                    </div>
+                  )}
+                </div>
 
-              <button
-                className="btn btn-primary btn-lg"
-                onClick={() => handleConfirmBanishment()}
-              >
-                Reveal Role
-              </button>
-            </div>
-          )}
+                <div style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'clamp(2rem, 6vw, 3.4rem)',
+                  color: 'var(--crimson-light)',
+                  textShadow: '0 0 30px rgba(139,0,0,0.8)',
+                  letterSpacing: 4,
+                  marginTop: 24,
+                }}>
+                  {banishedPlayer}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.4rem',
+                  color: 'var(--text)',
+                  letterSpacing: 3,
+                  marginBottom: 20,
+                }}>
+                  HAS BEEN BANISHED
+                </div>
+
+                {!wasRevealed ? (
+                  <>
+                    <div style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: '1.3rem',
+                      color: 'var(--gold)',
+                      letterSpacing: 3,
+                      marginBottom: 24,
+                    }}>
+                      REVEAL THEIR LOYALTY
+                    </div>
+                    <button
+                      className="btn btn-primary btn-lg"
+                      onClick={() => handleConfirmBanishment()}
+                    >
+                      Reveal Role
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: '1.5rem',
+                      color: roleColor,
+                      letterSpacing: 4,
+                      marginTop: 18,
+                      marginBottom: 24,
+                      animation: 'fadeInUp 0.8s ease',
+                    }}>
+                      {revealedRole === 'traitor'
+                        ? 'A TRAITOR HAS FALLEN.'
+                        : 'AN INNOCENT HAS BEEN LOST.'}
+                    </div>
+                    <button
+                      className="btn btn-primary btn-lg"
+                      onClick={handleContinueAfterBanishment}
+                    >
+                      Continue
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
         </div>
@@ -1163,9 +1286,6 @@ export default function HostDashboard() {
           }}>
             {alivePlayers.length} players alive
           </span>
-          <button className="btn btn-sm btn-dark" onClick={handlePause}>
-            {paused ? '▶' : '⏸'}
-          </button>
           <button className="btn btn-sm btn-dark" onClick={handleResetGame}>
             Reset
           </button>
