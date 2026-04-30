@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useGame from '../hooks/useGame';
 import Timer from './Timer';
 import NightPhase from './NightPhase';
@@ -25,18 +25,40 @@ export default function PlayerScreen() {
   const [nameInput, setNameInput] = useState('');
   const [roleRevealed, setRoleRevealed] = useState(false);
   const [showRole, setShowRole] = useState(false);
+  // Stable per-device session id. Only the device that first claimed
+  // a portrait can re-claim it on refresh — so leftover localStorage
+  // from earlier testing won't hijack someone else's pick.
+  const sessionIdRef = useRef(null);
+  if (sessionIdRef.current === null) {
+    let sid = localStorage.getItem('traitors_session_id');
+    if (!sid) {
+      sid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem('traitors_session_id', sid);
+    }
+    sessionIdRef.current = sid;
+  }
+  const mySessionId = sessionIdRef.current;
 
   const player = players[playerName] || null;
   const isAlive = player?.status === 'alive';
   const isTraitor = player?.role === 'traitor';
   const isFaithful = player?.role === 'faithful';
 
-  // Auto-rejoin if name is in localStorage and player exists
+  // Auto-rejoin ONLY when the player record in Firebase has the same
+  // sessionId this device stored when it originally picked the portrait.
+  // Without this guard, any phone with leftover localStorage would
+  // hijack a portrait the moment someone else picked it.
   useEffect(() => {
-    if (playerName && players[playerName] && !joined) {
+    if (joined) return;
+    if (!playerName) return;
+    const p = players[playerName];
+    if (!p) return;
+    if (p.sessionId && p.sessionId === mySessionId) {
       setJoined(true);
     }
-  }, [playerName, players, joined]);
+  }, [playerName, players, joined, mySessionId]);
 
   // Role reveal animation
   useEffect(() => {
@@ -53,15 +75,13 @@ export default function PlayerScreen() {
   async function handleJoinWithName(rawName) {
     const name = String(rawName || '').trim();
     if (!name) return;
-    const taken = !!players[name];
-    const ownedByMe = taken && (
-      localStorage.getItem('traitors_name') === name
-    );
-    if (taken && !ownedByMe) {
+    const existing = players[name];
+    const ownedByMe = existing?.sessionId && existing.sessionId === mySessionId;
+    if (existing && !ownedByMe) {
       alert(`${name} is already in the game on another device.`);
       return;
     }
-    const success = await addPlayer(name);
+    const success = await addPlayer(name, mySessionId);
     if (success || ownedByMe) {
       setPlayerName(name);
       localStorage.setItem('traitors_name', name);
@@ -109,6 +129,7 @@ export default function PlayerScreen() {
         setNameInput={setNameInput}
         onPick={handleJoinWithName}
         onCustomSubmit={handleCustomNameSubmit}
+        mySessionId={mySessionId}
       />
     );
   }
@@ -602,9 +623,8 @@ export default function PlayerScreen() {
 // "Pick your portrait" gallery, with a custom-name fallback for
 // guests who aren't on the preset roster.
 // ============================================================
-function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPick, onCustomSubmit }) {
+function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPick, onCustomSubmit, mySessionId }) {
   const [showCustom, setShowCustom] = useState(false);
-  const ownName = (typeof window !== 'undefined' && localStorage.getItem('traitors_name')) || '';
 
   return (
     <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 12px 40px' }}>
@@ -652,8 +672,9 @@ function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPic
             marginBottom: 24,
           }}>
             {PRESET_PLAYERS.map(name => {
-              const taken = !!players[name];
-              const isMine = taken && ownName === name;
+              const existing = players[name];
+              const taken = !!existing;
+              const isMine = taken && existing.sessionId && existing.sessionId === mySessionId;
               const disabled = taken && !isMine;
               return (
                 <button

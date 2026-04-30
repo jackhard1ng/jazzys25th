@@ -75,7 +75,7 @@ export async function resetGame() {
 }
 
 // Add a player to the game
-export async function addPlayer(name) {
+export async function addPlayer(name, sessionId) {
   const sanitized = name.trim();
   if (!sanitized) return false;
   const playerRef = getPlayerRef(sanitized);
@@ -87,6 +87,7 @@ export async function addPlayer(name) {
     status: 'alive', // alive, murdered, banished
     shield: false,
     connected: true,
+    sessionId: sessionId || null,
     joinedAt: Date.now(),
   });
   return true;
