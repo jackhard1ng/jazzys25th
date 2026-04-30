@@ -530,12 +530,6 @@ export default function HostDashboard() {
               Night Has Fallen
             </div>
             <p style={{ color: 'var(--text-dim)', fontSize: '1.2rem' }}>All players are writing their scrolls...</p>
-
-            {/* Active player count */}
-            <div style={{ margin: '15px 0', fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2 }}>
-              {alivePlayers.length}/{alivePlayers.length} PLAYERS ACTIVE
-            </div>
-
           </div>
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
@@ -694,12 +688,25 @@ export default function HostDashboard() {
           </div>
 
           <div className="host-controls" style={{ marginTop: 20 }}>
-            <button className="btn btn-primary" onClick={handleAdvanceToRoundtable}>
-              Proceed to Roundtable
-            </button>
-            <button className="btn btn-dark" onClick={handleAdvanceToRoundtable}>
-              Skip Challenge
-            </button>
+            {round === 1 ? (
+              <>
+                <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
+                  No banishment on the first night — the traitors strike unopposed.
+                </p>
+                <button className="btn btn-primary" onClick={handleNoBanishment}>
+                  Reveal the Night's Outcome
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-primary" onClick={handleAdvanceToRoundtable}>
+                  Proceed to Roundtable
+                </button>
+                <button className="btn btn-dark" onClick={handleAdvanceToRoundtable}>
+                  Skip Challenge
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
