@@ -117,7 +117,7 @@ export default function PlayerScreen() {
   // SPECTATOR MODE (eliminated players)
   // ============================================================
   if (player && !isAlive && phase !== 'lobby' && phase !== 'endgame') {
-    return <SpectatorMode player={player} players={players} gameState={gameState} traitorChat={traitorChat} />;
+    return <SpectatorMode player={player} players={players} gameState={gameState} />;
   }
 
   // ============================================================
