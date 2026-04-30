@@ -534,25 +534,23 @@ export default function NightPhase({
                 No valid targets — every faithful is shielded tonight.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
                 {validTargets.map(p => {
                   const selected = myMurderVote === p.name;
                   return (
                     <button
                       key={p.name}
-                      className={`btn ${selected ? 'btn-primary' : 'btn-dark'}`}
                       onClick={() => handleMurderVote(p.name)}
                       style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '8px 10px',
-                        minWidth: 78,
+                        background: 'transparent',
+                        border: selected ? '2px solid var(--crimson-light)' : '2px solid transparent',
+                        borderRadius: 6,
+                        padding: 3,
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s',
                       }}
                     >
-                      <PlayerPortrait name={p.name} photo={p.photo} size={48} glow={selected} />
-                      <span style={{ fontSize: '0.72rem', letterSpacing: 0.5 }}>{p.name}</span>
+                      <PlayerPortrait name={p.name} photo={p.photo} width={80} glow={selected} />
                     </button>
                   );
                 })}
@@ -564,28 +562,17 @@ export default function NightPhase({
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: 1.5, marginBottom: 6 }}>
                   PROTECTED TONIGHT
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
                   {shieldedFaithful.map(p => (
-                    <div key={p.name} style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 3,
-                      padding: '4px 8px',
-                      background: 'rgba(218,165,32,0.08)',
-                      border: '1px solid rgba(218,165,32,0.4)',
-                      borderRadius: 4,
-                      opacity: 0.8,
-                    }}>
-                      <PlayerPortrait name={p.name} photo={p.photo} size={40} />
-                      <span style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--gold)',
-                        fontFamily: 'var(--font-heading)',
-                        letterSpacing: 0.5,
-                      }}>
-                        🛡️ {p.name}
-                      </span>
+                    <div key={p.name} style={{ position: 'relative' }}>
+                      <PlayerPortrait name={p.name} photo={p.photo} width={64} faded />
+                      <div style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        fontSize: '1rem',
+                        filter: 'drop-shadow(0 0 6px rgba(218,165,32,0.8))',
+                      }}>🛡️</div>
                     </div>
                   ))}
                 </div>

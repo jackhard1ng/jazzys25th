@@ -3,6 +3,7 @@ import useGame from '../hooks/useGame';
 import Timer from './Timer';
 import PortraitWall from './PortraitWall';
 import PlayerPortrait from './PlayerPortrait';
+import { PRESET_PLAYERS } from '../presetPlayers';
 import { selectPrompts, pickTraitorCount } from '../prompts';
 import {
   resetGame, updateGameState, updateGameConfig, assignRoles,
@@ -10,16 +11,6 @@ import {
   updatePlayerStatus, updatePlayerShield, startTimer, clearTimer,
   set, ref, db, update, get, playersRef, stateRef,
 } from '../firebase';
-
-// ============================================================
-// PRE-LOADED PLAYER LIST
-// ============================================================
-const PRESET_PLAYERS = [
-  'Jack', 'Isabel', 'Keegan', 'Tatum', 'Sydney', 'Carson', 'Ellie',
-  'Chandler', 'Josh', 'Gavin', 'Ryan', 'Bailey', 'Aubrey', 'Aaron',
-  'Katie', 'Isabelle', 'Braxton', 'Isaac', 'Gaige', 'Shelley',
-  'Gunner', 'Natalia', 'David', 'Hallie', 'Fred',
-];
 
 export default function HostDashboard() {
   const {
@@ -665,26 +656,35 @@ export default function HostDashboard() {
             <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 14, textAlign: 'center' }}>
               Tap the drinking-game winner. Shielded players are protected from murder tonight and won't appear in the traitors' target list.
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center' }}>
               {alivePlayers.map(p => (
                 <button
                   key={p.name}
-                  className={`btn ${p.shield ? 'btn-gold' : 'btn-dark'}`}
                   onClick={() => p.shield ? handleRemoveShield(p.name) : handleAwardShield(p.name)}
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '10px 12px',
-                    minWidth: 100,
+                    position: 'relative',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 4,
+                    borderRadius: 6,
+                    transition: 'transform 0.2s',
                   }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; }}
                   title={p.shield ? 'Tap to remove shield' : 'Tap to award shield'}
                 >
-                  <PlayerPortrait name={p.name} photo={p.photo} size={64} glow={p.shield} />
-                  <span style={{ fontSize: '0.8rem', letterSpacing: 1 }}>
-                    {p.shield ? '🛡️ ' : ''}{p.name}
-                  </span>
+                  <PlayerPortrait name={p.name} photo={p.photo} width={110} glow={p.shield} />
+                  {p.shield && (
+                    <div style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      fontSize: '1.4rem',
+                      filter: 'drop-shadow(0 0 8px rgba(218,165,32,0.9))',
+                      pointerEvents: 'none',
+                    }}>🛡️</div>
+                  )}
                 </button>
               ))}
             </div>
@@ -832,23 +832,23 @@ export default function HostDashboard() {
             }}>
               WHO HAS BEEN BANISHED?
             </h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center' }}>
               {alivePlayers.map(p => (
                 <button
                   key={p.name}
-                  className="btn btn-dark"
                   onClick={() => handleSelectBanished(p.name)}
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '12px 14px',
-                    minWidth: 110,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 4,
+                    borderRadius: 6,
+                    transition: 'transform 0.2s, filter 0.2s',
                   }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.filter = 'drop-shadow(0 0 14px rgba(220,20,60,0.6))'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.filter = ''; }}
                 >
-                  <PlayerPortrait name={p.name} photo={p.photo} size={72} />
-                  <span style={{ fontSize: '0.85rem', letterSpacing: 1 }}>{p.name}</span>
+                  <PlayerPortrait name={p.name} photo={p.photo} width={130} />
                 </button>
               ))}
             </div>
@@ -997,34 +997,49 @@ export default function HostDashboard() {
             <p style={{ color: 'var(--text-dim)', marginBottom: 15, fontFamily: 'var(--font-heading)', letterSpacing: 1 }}>
               Tap each player to reveal their role:
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center' }}>
               {alivePlayers.map(p => {
                 const isRevealed = endgameRevealed.includes(p.name);
                 return (
                   <button
                     key={p.name}
-                    className={`btn ${isRevealed
-                      ? (p.role === 'traitor' ? 'btn-primary' : 'btn-gold')
-                      : 'btn-dark'}`}
                     onClick={() => handleEndgameReveal(p.name)}
                     disabled={isRevealed}
                     style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '10px 12px',
-                      minWidth: 110,
+                      position: 'relative',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: isRevealed ? 'default' : 'pointer',
+                      padding: 4,
+                      transition: 'transform 0.2s',
                     }}
                   >
-                    <PlayerPortrait name={p.name} photo={p.photo} size={64} />
-                    <span style={{ fontSize: '0.8rem', letterSpacing: 1 }}>
-                      {isRevealed ? (p.role === 'traitor' ? '🗡️ ' : '✨ ') : ''}{p.name}
-                    </span>
+                    <PlayerPortrait
+                      name={p.name}
+                      photo={p.photo}
+                      width={110}
+                      border={isRevealed
+                        ? `3px solid ${p.role === 'traitor' ? 'var(--crimson-light)' : 'var(--gold)'}`
+                        : undefined}
+                      glow={isRevealed}
+                    />
                     {isRevealed && (
-                      <span style={{ fontSize: '0.7rem', letterSpacing: 2 }}>
-                        {p.role.toUpperCase()}
-                      </span>
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 8,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: p.role === 'traitor' ? 'var(--crimson-light)' : 'var(--gold)',
+                        color: 'var(--black, #0a0a0a)',
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: '0.7rem',
+                        letterSpacing: 2,
+                        padding: '3px 10px',
+                        borderRadius: 3,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {p.role === 'traitor' ? '🗡️ ' : '✨ '}{p.role.toUpperCase()}
+                      </div>
                     )}
                   </button>
                 );

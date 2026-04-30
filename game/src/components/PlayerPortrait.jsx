@@ -5,25 +5,34 @@ import { useState, useEffect } from 'react';
 const BASE = import.meta.env.BASE_URL || '/';
 
 // ============================================================
-// PlayerPortrait — round portrait with a fallback chain:
-//   1. uploaded photo (base64 data URL)
-//   2. /headshots/{name}.png   (case-insensitive, from public/)
-//   3. /headshots/{name}.jpg
-//   4. /headshots/{name}.jpeg
-//   5. silhouette
-// Headshots in game/public/headshots/ are bundled into the deploy.
+// PlayerPortrait
+// Designed for the gold-framed gallery portraits in
+// game/public/headshots/. Renders at the given WIDTH, with the
+// natural aspect ratio of the underlying image (most are taller
+// than wide because of the frame).
+// Fallback chain:
+//   1. uploaded photo (base64 data URL from the player's phone)
+//   2. /headshots/<name>.png
+//   3. /headshots/<name>.jpg
+//   4. /headshots/<name>.jpeg
+//   5. first-letter silhouette card
 // ============================================================
 export default function PlayerPortrait({
   name,
   photo,
-  size = 48,
-  rounded = true,
+  width = 100,        // pixel width (height is natural)
+  aspectRatio = '4/5',// silhouette + uploaded-photo fallback aspect
   border,
   glow = false,
+  faded = false,
 }) {
   const [errorIdx, setErrorIdx] = useState(0);
 
-  const slug = String(name || '').toLowerCase().replace(/\s+/g, '-');
+  const slug = String(name || '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+
   const sources = [];
   if (photo) sources.push(photo);
   sources.push(`${BASE}headshots/${slug}.png`);
@@ -35,35 +44,56 @@ export default function PlayerPortrait({
 
   const exhausted = errorIdx >= sources.length;
 
-  const isNumeric = typeof size === 'number';
-  const baseStyle = {
-    width: size,
-    height: size,
-    borderRadius: rounded ? '50%' : 6,
-    objectFit: 'cover',
-    background: 'var(--dark-gray, #2a2a2a)',
-    border: border || undefined,
-    boxShadow: glow ? '0 0 14px rgba(218,165,32,0.45)' : undefined,
-    flexShrink: 0,
-    display: 'block',
-  };
+  const sizeStyle = typeof width === 'number'
+    ? { width: `${width}px` }
+    : { width };
 
   if (exhausted) {
+    // Silhouette card — keeps the gallery layout consistent when a
+    // headshot file is missing (e.g. someone joins with a custom name).
     return (
       <div
         aria-label={name}
         style={{
-          ...baseStyle,
+          ...sizeStyle,
+          aspectRatio,
+          borderRadius: 6,
+          background: 'var(--dark-gray, #2a2a2a)',
+          border: border || '1px solid var(--stone, #3a3a3a)',
+          boxShadow: glow ? '0 0 16px rgba(218,165,32,0.5)' : undefined,
+          opacity: faded ? 0.45 : 1,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           justifyContent: 'center',
-          fontSize: isNumeric ? size * 0.45 : '1.2rem',
-          color: 'var(--text-dim)',
+          flexShrink: 0,
           fontFamily: 'var(--font-heading)',
-          letterSpacing: 1,
+          color: 'var(--gold)',
+          letterSpacing: 2,
+          padding: 8,
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        {(name || '?').charAt(0).toUpperCase()}
+        <span style={{
+          position: 'absolute',
+          top: '40%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: 'clamp(1.6rem, 6vw, 2.4rem)',
+          color: 'var(--text-dim)',
+          opacity: 0.8,
+        }}>
+          {(name || '?').charAt(0).toUpperCase()}
+        </span>
+        <span style={{
+          fontSize: '0.7rem',
+          textAlign: 'center',
+          textTransform: 'uppercase',
+          color: 'var(--gold)',
+          width: '100%',
+        }}>
+          {name}
+        </span>
       </div>
     );
   }
@@ -73,7 +103,17 @@ export default function PlayerPortrait({
       src={sources[errorIdx]}
       alt={name}
       onError={() => setErrorIdx(i => i + 1)}
-      style={baseStyle}
+      style={{
+        ...sizeStyle,
+        height: 'auto',
+        display: 'block',
+        flexShrink: 0,
+        border: border || undefined,
+        borderRadius: 4,
+        boxShadow: glow ? '0 0 22px rgba(218,165,32,0.6)' : undefined,
+        opacity: faded ? 0.45 : 1,
+        transition: 'opacity 0.3s, box-shadow 0.3s',
+      }}
     />
   );
 }

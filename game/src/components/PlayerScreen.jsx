@@ -4,6 +4,8 @@ import useTimer from '../hooks/useTimer';
 import Timer from './Timer';
 import NightPhase from './NightPhase';
 import SpectatorMode from './SpectatorMode';
+import PlayerPortrait from './PlayerPortrait';
+import { PRESET_PLAYERS } from '../presetPlayers';
 import { addPlayer, updatePlayerPhoto } from '../firebase';
 
 // ============================================================
@@ -51,24 +53,28 @@ export default function PlayerScreen() {
     }
   }, [phase, player?.role, roleRevealed]);
 
-  async function handleJoin() {
-    const name = nameInput.trim();
+  async function handleJoinWithName(rawName) {
+    const name = String(rawName || '').trim();
     if (!name) return;
+    const taken = !!players[name];
+    const ownedByMe = taken && (
+      localStorage.getItem('traitors_name') === name
+    );
+    if (taken && !ownedByMe) {
+      alert(`${name} is already in the game on another device.`);
+      return;
+    }
     const success = await addPlayer(name);
-    if (success) {
+    if (success || ownedByMe) {
       setPlayerName(name);
       localStorage.setItem('traitors_name', name);
       setJoined(true);
-    } else {
-      // Name already taken or exists — try to rejoin
-      if (players[name]) {
-        setPlayerName(name);
-        localStorage.setItem('traitors_name', name);
-        setJoined(true);
-      } else {
-        alert('That name is already taken. Try a different name.');
-      }
     }
+  }
+
+  async function handleCustomNameSubmit() {
+    await handleJoinWithName(nameInput);
+    setNameInput('');
   }
 
   // Compress and upload photo
@@ -132,62 +138,18 @@ export default function PlayerScreen() {
   }
 
   // ============================================================
-  // JOIN SCREEN
+  // JOIN SCREEN — portrait gallery picker
   // ============================================================
   if (!joined) {
     return (
-      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: '2rem',
-          color: 'var(--gold)',
-          textAlign: 'center',
-          letterSpacing: 4,
-          animation: 'candleFlicker 3s infinite',
-          marginBottom: 10,
-        }}>
-          The Traitors
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: '1rem',
-          color: 'var(--text-dim)',
-          textAlign: 'center',
-          letterSpacing: 2,
-          marginBottom: 40,
-        }}>
-          Jazzy's Birthday
-        </div>
-
-        <div className="panel" style={{ width: '100%', maxWidth: 400 }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 15, textAlign: 'center', letterSpacing: 2 }}>
-            ENTER THE GAME
-          </h2>
-          <input
-            className="input"
-            placeholder="Enter your name..."
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            autoFocus
-            style={{ marginBottom: 15, textAlign: 'center', fontSize: '1.3rem' }}
-          />
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={handleJoin}
-            disabled={!nameInput.trim()}
-            style={{ width: '100%' }}
-          >
-            Join
-          </button>
-        </div>
-
-        {!connected && (
-          <p style={{ color: 'var(--crimson-light)', marginTop: 20, fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
-            Connecting to server...
-          </p>
-        )}
-      </div>
+      <PortraitPickerJoin
+        connected={connected}
+        players={players}
+        nameInput={nameInput}
+        setNameInput={setNameInput}
+        onPick={handleJoinWithName}
+        onCustomSubmit={handleCustomNameSubmit}
+      />
     );
   }
 
@@ -706,6 +668,195 @@ export default function PlayerScreen() {
       <div className="cinematic-text" style={{ fontSize: '1.5rem' }}>
         Awaiting the host...
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// PORTRAIT PICKER JOIN
+// "Pick your portrait" gallery, with a custom-name fallback for
+// guests who aren't on the preset roster.
+// ============================================================
+function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPick, onCustomSubmit }) {
+  const [showCustom, setShowCustom] = useState(false);
+  const ownName = (typeof window !== 'undefined' && localStorage.getItem('traitors_name')) || '';
+
+  return (
+    <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 12px 40px' }}>
+      <div style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: '1.8rem',
+        color: 'var(--gold)',
+        textAlign: 'center',
+        letterSpacing: 4,
+        animation: 'candleFlicker 3s infinite',
+        marginBottom: 6,
+      }}>
+        The Traitors
+      </div>
+      <div style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: '0.85rem',
+        color: 'var(--text-dim)',
+        textAlign: 'center',
+        letterSpacing: 2,
+        marginBottom: 24,
+      }}>
+        Jazzy's Birthday
+      </div>
+
+      {!showCustom ? (
+        <>
+          <h2 style={{
+            fontFamily: 'var(--font-heading)',
+            color: 'var(--gold)',
+            fontSize: '1rem',
+            letterSpacing: 3,
+            textAlign: 'center',
+            marginBottom: 18,
+          }}>
+            TAP YOUR PORTRAIT
+          </h2>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+            gap: 14,
+            width: '100%',
+            maxWidth: 600,
+            marginBottom: 24,
+          }}>
+            {PRESET_PLAYERS.map(name => {
+              const taken = !!players[name];
+              const isMine = taken && ownName === name;
+              const disabled = taken && !isMine;
+              return (
+                <button
+                  key={name}
+                  onClick={() => !disabled && onPick(name)}
+                  disabled={disabled}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    position: 'relative',
+                    width: '100%',
+                    transition: 'transform 0.15s, filter 0.15s',
+                  }}
+                  onTouchStart={e => { if (!disabled) e.currentTarget.style.transform = 'scale(0.96)'; }}
+                  onTouchEnd={e => { e.currentTarget.style.transform = ''; }}
+                >
+                  <PlayerPortrait
+                    name={name}
+                    width="100%"
+                    faded={disabled}
+                    glow={isMine}
+                  />
+                  {disabled && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%) rotate(-12deg)',
+                      background: 'var(--crimson-light, #dc143c)',
+                      color: 'var(--black, #0a0a0a)',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.75rem',
+                      letterSpacing: 2,
+                      padding: '4px 12px',
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                      pointerEvents: 'none',
+                    }}>
+                      TAKEN
+                    </div>
+                  )}
+                  {isMine && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 6,
+                      right: 6,
+                      background: 'var(--gold)',
+                      color: 'var(--black, #0a0a0a)',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.65rem',
+                      letterSpacing: 1.5,
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      pointerEvents: 'none',
+                    }}>
+                      YOU
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setShowCustom(true)}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--stone, #3a3a3a)',
+              color: 'var(--text-dim)',
+              fontFamily: 'var(--font-heading)',
+              fontSize: '0.8rem',
+              letterSpacing: 2,
+              padding: '10px 20px',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            I DON'T SEE MYSELF
+          </button>
+        </>
+      ) : (
+        <div className="panel" style={{ width: '100%', maxWidth: 360 }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 14, textAlign: 'center', fontSize: '0.9rem' }}>
+            ENTER YOUR NAME
+          </h3>
+          <input
+            className="input"
+            placeholder="Your name..."
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onCustomSubmit()}
+            autoFocus
+            style={{ marginBottom: 12, textAlign: 'center', fontSize: '1.1rem' }}
+          />
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={onCustomSubmit}
+            disabled={!nameInput.trim()}
+            style={{ width: '100%', marginBottom: 10 }}
+          >
+            Join
+          </button>
+          <button
+            onClick={() => setShowCustom(false)}
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-dim)',
+              fontFamily: 'var(--font-heading)',
+              fontSize: '0.75rem',
+              letterSpacing: 2,
+              padding: 8,
+              cursor: 'pointer',
+            }}
+          >
+            ← BACK TO PORTRAITS
+          </button>
+        </div>
+      )}
+
+      {!connected && (
+        <p style={{ color: 'var(--crimson-light)', marginTop: 20, fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
+          Connecting to server...
+        </p>
+      )}
     </div>
   );
 }
