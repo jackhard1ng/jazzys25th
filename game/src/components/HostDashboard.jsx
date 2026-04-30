@@ -952,20 +952,39 @@ export default function HostDashboard() {
             </button>
           </div>
 
-          {/* Shield management */}
-          <div className="panel" style={{ maxWidth: 500, margin: '20px auto' }}>
-            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 10, letterSpacing: 2, fontSize: '0.9rem' }}>
+          {/* Shield management — between rounds, in case the host missed
+              awarding a shield during the challenge or wants to adjust. */}
+          <div className="panel" style={{ maxWidth: 720, margin: '20px auto' }}>
+            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 4, letterSpacing: 2, fontSize: '0.9rem', textAlign: 'center' }}>
               SHIELD MANAGEMENT
             </h3>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginBottom: 12, textAlign: 'center' }}>
+              Tap to add or remove a shield before the next night begins.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
               {alivePlayers.map(p => (
                 <button
                   key={p.name}
-                  className={`btn btn-sm ${p.shield ? 'btn-gold' : 'btn-dark'}`}
                   onClick={() => p.shield ? handleRemoveShield(p.name) : handleAwardShield(p.name)}
-                  style={{ fontSize: '0.75rem' }}
+                  style={{
+                    position: 'relative',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 4,
+                  }}
                 >
-                  {p.shield ? '🛡️ ' : ''}{p.name}
+                  <PlayerPortrait name={p.name} photo={p.photo} width={90} glow={p.shield} />
+                  {p.shield && (
+                    <div style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      fontSize: '1.2rem',
+                      filter: 'drop-shadow(0 0 6px rgba(218,165,32,0.9))',
+                      pointerEvents: 'none',
+                    }}>🛡️</div>
+                  )}
                 </button>
               ))}
             </div>
