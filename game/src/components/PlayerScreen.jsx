@@ -902,7 +902,7 @@ function RecruitmentPhone({ player, playerName, players, alivePlayers, gameState
             letterSpacing: 4,
             marginBottom: 18,
           }}>
-            DARKNESS HAS FOUND YOU
+            YOU HAVE BEEN SELECTED
           </div>
           <div style={{
             fontFamily: "var(--font-display)",
@@ -913,7 +913,7 @@ function RecruitmentPhone({ player, playerName, players, alivePlayers, gameState
             marginBottom: 14,
             animation: "candleFlicker 2s infinite",
           }}>
-            YOU ARE A TRAITOR
+            TO JOIN THE TRAITORS
           </div>
           <p style={{
             fontFamily: "var(--font-body)",
@@ -924,7 +924,7 @@ function RecruitmentPhone({ player, playerName, players, alivePlayers, gameState
             lineHeight: 1.5,
             marginBottom: 14,
           }}>
-            You have been recruited to the traitor council. Trust no one. Suspect everyone.
+            The lone traitor has chosen you. There is no refusing the call. From this moment on, you serve the darkness.
           </p>
           <p style={{
             fontFamily: "var(--font-heading)",
