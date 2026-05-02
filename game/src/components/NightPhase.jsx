@@ -213,7 +213,25 @@ export default function NightPhase({
           ============================================================ */}
       {(!isTraitor || !showTraitorChat) && (
         <div className="fade-in">
-          {!allSubmitted && prompts.length > 0 ? (
+          {prompts.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                color: 'var(--gold)',
+                letterSpacing: 2,
+                animation: 'pulse 1.5s infinite',
+                marginBottom: 12,
+              }}>
+                Preparing the night…
+              </div>
+              <div style={{ fontSize: '2rem', animation: 'candleFlicker 3s infinite', opacity: 0.6 }}>
+                🕯️
+              </div>
+              <div style={{ marginTop: 12, fontFamily: 'var(--font-body)', fontStyle: 'italic', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                Your scrolls will appear in a moment.
+              </div>
+            </div>
+          ) : !allSubmitted && prompts.length > 0 ? (
             <div>
               <div style={{
                 fontFamily: 'var(--font-heading)',

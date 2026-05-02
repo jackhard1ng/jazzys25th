@@ -315,6 +315,9 @@ export default function PlayerScreen() {
   if (phase === 'night') {
     return (
       <NightPhase
+        // key={round} forces a clean remount each round so no state
+        // (responses, allSubmitted, bonusMode) leaks across rounds.
+        key={`night-${round}`}
         player={player}
         playerName={playerName}
         isTraitor={isTraitor}
