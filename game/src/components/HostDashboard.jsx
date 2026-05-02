@@ -19,7 +19,7 @@ export default function HostDashboard() {
     connected,
   } = useGame();
 
-  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, rolledTraitorCount } = gameState;
+  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, rolledTraitorCount, paused } = gameState;
 
   const [newPlayerName, setNewPlayerName] = useState('');
   const [revealedRoles, setRevealedRoles] = useState({});
