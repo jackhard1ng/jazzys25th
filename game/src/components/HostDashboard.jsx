@@ -221,8 +221,10 @@ export default function HostDashboard() {
     if (entries.length > 0) {
       const maxCount = Math.max(...entries.map(([, c]) => c));
       const tied = entries.filter(([, c]) => c === maxCount).map(([name]) => name);
-      // Random tie-break (also handles single-leader as 1-element array).
-      target = tied[Math.floor(Math.random() * tied.length)];
+      // Only murder if there's a CLEAR leader. If the traitors split
+      // their votes evenly across multiple targets they "couldn't
+      // agree" and nobody dies that night.
+      if (tied.length === 1) target = tied[0];
     }
 
     // New flow: roundtable + banishment happen BEFORE night, so once night
@@ -244,7 +246,8 @@ export default function HostDashboard() {
       phase: 'murderReveal',
       murderTarget: target || null,
       shieldBlocked: shieldWasBlocked,
-      nightPrompts: null, // wipe so the next round starts fresh
+      murderRevealed: false, // phones wait for the host's TV animation
+      nightPrompts: null,
       timerEnd: null,
       timerDuration: null,
     });
@@ -702,7 +705,12 @@ export default function HostDashboard() {
         <ShortListSlotMachine
           target={murderTarget}
           alivePlayers={alivePlayers}
-          onComplete={() => setMurderRevealStage('final')}
+          onComplete={() => {
+            setMurderRevealStage('final');
+            // Tell the player phones the reveal has played — they'll
+            // now show the same result the TV is showing.
+            updateGameState({ murderRevealed: true });
+          }}
         />
       )}
 
@@ -783,11 +791,13 @@ export default function HostDashboard() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '6rem',
-                  transform: 'rotate(-22deg)',
-                  filter: 'drop-shadow(0 0 18px rgba(139,0,0,0.95))',
+                  fontSize: '10rem',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 900,
+                  color: 'var(--crimson-light)',
+                  textShadow: '0 0 28px rgba(139,0,0,1), 0 0 60px rgba(139,0,0,0.8)',
                   pointerEvents: 'none',
-                }}>🗡️</div>
+                }}>✕</div>
               </div>
               <div className="cinematic-name" style={{
                 fontFamily: 'var(--font-display)',
@@ -1691,11 +1701,13 @@ function ShortListSlotMachine({ target, alivePlayers, onComplete }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '6rem',
-              transform: 'rotate(-22deg)',
-              filter: 'drop-shadow(0 0 18px rgba(139,0,0,0.95))',
+              fontSize: '12rem',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 900,
+              color: 'var(--crimson-light)',
+              textShadow: '0 0 28px rgba(139,0,0,1), 0 0 60px rgba(139,0,0,0.8)',
               pointerEvents: 'none',
-            }}>🗡️</div>
+            }}>✕</div>
           )}
         </div>
       ) : (

@@ -63,7 +63,7 @@ export default function PortraitWall({ players, revealedRoles = {} }) {
               </div>
             )}
 
-            {/* Murdered overlay (X-ed dagger) */}
+            {/* Murdered overlay — bold X across the face */}
             {isMurdered && (
               <div style={{
                 position: 'absolute',
@@ -71,13 +71,14 @@ export default function PortraitWall({ players, revealedRoles = {} }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '2.5rem',
-                transform: 'rotate(-25deg)',
+                fontSize: '4rem',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 900,
                 color: 'var(--crimson-light)',
-                filter: 'drop-shadow(0 0 8px rgba(139,0,0,0.9))',
+                textShadow: '0 0 14px rgba(139,0,0,1), 0 0 28px rgba(139,0,0,0.7)',
                 pointerEvents: 'none',
               }}>
-                🗡️
+                ✕
               </div>
             )}
 

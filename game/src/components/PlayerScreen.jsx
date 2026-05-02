@@ -19,7 +19,7 @@ export default function PlayerScreen() {
     connected,
   } = useGame();
 
-  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, nightPrompts } = gameState;
+  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, nightPrompts, murderRevealed } = gameState;
 
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('traitors_name') || '');
   const [joined, setJoined] = useState(false);
@@ -337,6 +337,28 @@ export default function PlayerScreen() {
   // MURDER REVEAL (player view)
   // ============================================================
   if (phase === 'murderReveal') {
+    // Wait for the host's TV reveal animation before spoiling the result
+    // on every phone in the room.
+    if (!murderRevealed) {
+      return (
+        <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.4rem',
+            color: 'var(--text-dim)',
+            letterSpacing: 4,
+            textAlign: 'center',
+            animation: 'candleFlicker 3s infinite',
+            marginBottom: 20,
+          }}>
+            THE NIGHT HAS ENDED
+          </div>
+          <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-body)', fontStyle: 'italic', textAlign: 'center', maxWidth: 320 }}>
+            Watch the TV. The traitors have made their choice…
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         {shieldBlocked ? (
