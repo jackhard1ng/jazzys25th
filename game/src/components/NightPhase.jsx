@@ -25,9 +25,11 @@ export default function NightPhase({
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [bonusMode, setBonusMode] = useState(false);
 
-  // Traitor chat — default to SECRET tab so traitors don't have
-  // to hunt for it. They need this open to chat AND murder-vote.
-  const [showTraitorChat, setShowTraitorChat] = useState(isTraitor);
+  // Traitor chat tab. Default to the SCROLLS view so traitors see the
+  // questions immediately (and so faithful, looking over a shoulder, see
+  // the same first screen as the traitor). Traitors can flip to the
+  // chat / murder-vote tab themselves.
+  const [showTraitorChat, setShowTraitorChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [murderTarget, setMurderTarget] = useState('');
   const chatEndRef = useRef(null);

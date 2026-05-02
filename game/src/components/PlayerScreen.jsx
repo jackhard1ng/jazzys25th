@@ -434,7 +434,7 @@ export default function PlayerScreen() {
   // ============================================================
   // ROUNDTABLE (player view)
   // ============================================================
-  if (phase === 'roundtable') {
+  if (phase === 'roundtable' || phase === 'irlVote') {
     return (
       <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{
@@ -447,10 +447,9 @@ export default function PlayerScreen() {
         }}>
           THE ROUNDTABLE
         </div>
-        <p style={{ color: 'var(--text-dim)', marginTop: 15, textAlign: 'center', maxWidth: 300 }}>
-          Discuss. Debate. Deceive. Watch the TV for anonymous scrolls.
+        <p style={{ color: 'var(--text-dim)', marginTop: 15, textAlign: 'center', maxWidth: 320 }}>
+          Discuss in person. The room agrees on a banishment, then the host taps the chosen name on the TV.
         </p>
-        <Timer timerEnd={timerEnd} />
         <div style={{ marginTop: 20 }}>
           <span className="role-badge faithful">
             {isTraitor ? 'Traitor' : 'Faithful'}
@@ -458,36 +457,9 @@ export default function PlayerScreen() {
         </div>
         {player?.shield && (
           <div style={{ marginTop: 10 }}>
-            <span className="role-badge faithful">🛡️ Shield Active</span>
+            <span className="role-badge faithful">🛡️ Shield Active (protects from murder, not banishment)</span>
           </div>
         )}
-      </div>
-    );
-  }
-
-  // ============================================================
-  // IRL VOTE — paper voting in the room. Phone just says wait.
-  // ============================================================
-  if (phase === 'irlVote') {
-    return (
-      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="fade-in" style={{ textAlign: 'center', maxWidth: 320 }}>
-          <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '1.6rem',
-            color: 'var(--crimson-light)',
-            letterSpacing: 4,
-            marginBottom: 15,
-          }}>
-            VOTE ON PAPER
-          </div>
-          <p style={{ color: 'var(--text-dim)', marginBottom: 20 }}>
-            Write your banishment vote on a slip. The room will tap the result on the TV.
-          </p>
-          <span className="role-badge faithful">
-            {isTraitor ? 'Traitor' : 'Faithful'}
-          </span>
-        </div>
       </div>
     );
   }
