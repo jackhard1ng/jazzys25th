@@ -25,10 +25,13 @@ export default function HostDashboard() {
   const [revealedRoles, setRevealedRoles] = useState({});
   const [usedPrompts, setUsedPrompts] = useState(new Set());
   const [endgameRevealed, setEndgameRevealed] = useState([]);
-  // Two-stage murder reveal: PRESS TO REVEAL → animation
-  const [murderRevealed, setMurderRevealed] = useState(false);
+  // Three-stage murder reveal:
+  //   'pending'  → "Reveal the Victim" button visible
+  //   'cycling'  → slot-machine through the short list
+  //   'final'    → dramatic locked-in reveal
+  const [murderRevealStage, setMurderRevealStage] = useState('pending');
   useEffect(() => {
-    if (phase !== 'murderReveal') setMurderRevealed(false);
+    if (phase !== 'murderReveal') setMurderRevealStage('pending');
   }, [phase]);
   // Round 3 has TWO missions back-to-back. Track which one we're on.
   const [missionStage, setMissionStage] = useState(1);
@@ -212,37 +215,26 @@ export default function HostDashboard() {
       target = tied[Math.floor(Math.random() * tied.length)];
     }
 
-    // Shields were already awarded during the challenge phase BEFORE night,
-    // so we skip the challenge transition here. Round 1 has no banishment,
-    // so it goes straight to murder reveal; later rounds head to the
-    // roundtable so the group can read the scrolls.
-    if (round === 1) {
-      let shieldWasBlocked = false;
-      if (target) {
-        const snap = await get(playersRef);
-        const targetPlayer = (snap.val() || {})[target];
-        if (targetPlayer?.status === 'alive') {
-          if (targetPlayer.shield) {
-            await updatePlayerShield(target, false);
-            shieldWasBlocked = true;
-          } else {
-            await updatePlayerStatus(target, 'murdered');
-          }
+    // New flow: roundtable + banishment happen BEFORE night, so once night
+    // ends we always head straight to the murder reveal.
+    let shieldWasBlocked = false;
+    if (target) {
+      const snap = await get(playersRef);
+      const targetPlayer = (snap.val() || {})[target];
+      if (targetPlayer?.status === 'alive') {
+        if (targetPlayer.shield) {
+          await updatePlayerShield(target, false);
+          shieldWasBlocked = true;
+        } else {
+          await updatePlayerStatus(target, 'murdered');
         }
       }
-      await updateGameState({
-        phase: 'murderReveal',
-        murderTarget: target || null,
-        shieldBlocked: shieldWasBlocked,
-        banishedPlayer: null,
-      });
-    } else {
-      await updateGameState({
-        phase: 'roundtable',
-        murderTarget: target || null,
-        shieldBlocked: false,
-      });
     }
+    await updateGameState({
+      phase: 'murderReveal',
+      murderTarget: target || null,
+      shieldBlocked: shieldWasBlocked,
+    });
   }
 
   async function handleAdvanceToChallenge() {
@@ -263,21 +255,11 @@ export default function HostDashboard() {
   }
 
   async function handleNoBanishment() {
-    // Group couldn't agree / paper vote tied with no clear loser. Skip banishment.
-    let shieldWasBlocked = false;
-    if (murderTarget) {
-      const snap = await get(playersRef);
-      const targetPlayer = (snap.val() || {})[murderTarget];
-      if (targetPlayer?.status === 'alive') {
-        if (targetPlayer.shield) {
-          await updatePlayerShield(murderTarget, false);
-          shieldWasBlocked = true;
-        } else {
-          await updatePlayerStatus(murderTarget, 'murdered');
-        }
-      }
-    }
-    await updateGameState({ phase: 'murderReveal', shieldBlocked: shieldWasBlocked, banishedPlayer: null });
+    // Group couldn't agree on a banishment. Skip straight to night
+    // (rounds 2-6) or stay on roundtable for the next vote (round 7+).
+    await updateGameState({ banishedPlayer: null });
+    if (round >= 7) return; // stay on roundtable
+    await handleStartNight();
   }
 
   // Step 1 of banishment: just reveal the role on the screen.
@@ -293,8 +275,8 @@ export default function HostDashboard() {
     setRevealedRoles(prev => ({ ...prev, [name]: role }));
   }
 
-  // Step 2 of banishment: apply the murder + advance to murder reveal.
-  // Round 7+: no murder, loop back to roundtable for the next banishment.
+  // Step 2 of banishment: in the new flow, murder happens AFTER roundtable.
+  // Rounds 2-6: kick off the night phase. Round 7+: sequential roundtables.
   async function handleContinueAfterBanishment() {
     if (round >= 7) {
       // Round 7+ is sequential banishments only — no murder.
@@ -320,31 +302,29 @@ export default function HostDashboard() {
       return;
     }
 
-    let shieldWasBlocked = false;
-    if (murderTarget) {
-      const snap = await get(playersRef);
-      const currentPlayers = snap.val() || {};
-      const targetPlayer = currentPlayers[murderTarget];
-      if (targetPlayer?.status === 'alive') {
-        if (targetPlayer?.shield) {
-          await updatePlayerShield(murderTarget, false);
-          shieldWasBlocked = true;
-        } else {
-          await updatePlayerStatus(murderTarget, 'murdered');
-        }
-      }
-      // If target was just banished, murder doesn't apply
-    }
-    await updateGameState({ phase: 'murderReveal', shieldBlocked: shieldWasBlocked });
+    // Rounds 2-6: banishment is done, now start the night so the traitors
+    // can pick a target. Murder reveal happens once night ends.
+    await handleStartNight();
   }
 
   async function handleNextRound() {
     const next = round + 1;
     await updateGameState({ round: next });
-    // Challenge always comes first now (shields awarded BEFORE night).
-    // Round 7+ still skips night — that branch is handled inside the
-    // challenge UI (button reads "Proceed to Roundtable" instead of
-    // "Begin Night Phase").
+
+    // RECRUITMENT TRIGGER: at the start of any round 2-6, if exactly one
+    // traitor is alive AND more than 7 players are still in the game, the
+    // lone traitor gets to recruit a faithful before the round begins.
+    // (Rounds 1 and 7+ never trigger recruitment.)
+    if (next >= 2 && next <= 6) {
+      const snap = await get(playersRef);
+      const alive = Object.values(snap.val() || {}).filter(p => p.status === 'alive');
+      const aliveT = alive.filter(p => p.role === 'traitor');
+      if (aliveT.length === 1 && alive.length > 7) {
+        await updateGameState({ phase: 'recruitment', recruitedPlayer: null });
+        return;
+      }
+    }
+
     await handleStartChallenge();
   }
 
@@ -433,11 +413,9 @@ export default function HostDashboard() {
   }, [phase, timerEnd, paused]);
 
   // ============================================================
-  // ADVANCE AFTER MURDER REVEAL — check win conditions / recruitment
-  //   - 0 traitors → faithful win
-  //   - traitor parity → traitors win
-  //   - 1 traitor left at end of rounds 1-6 → recruitment phase
-  //   - otherwise next round
+  // ADVANCE AFTER MURDER REVEAL — check win conditions, otherwise
+  // head to the between-rounds lobby. Recruitment fires at the START
+  // of round 5 (handled in handleNextRound), not here.
   // ============================================================
   async function handleAdvanceAfterMurder() {
     const snap = await get(playersRef);
@@ -450,9 +428,6 @@ export default function HostDashboard() {
       await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
     } else if (aliveT.length >= aliveF.length) {
       await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
-    } else if (aliveT.length === 1 && round >= 1 && round <= 6) {
-      // Lone traitor recruits a faithful before round (round+1) starts
-      await updateGameState({ phase: 'recruitment', recruitedPlayer: null });
     } else {
       await updateGameState({ phase: 'lobby_between_rounds' });
     }
@@ -460,13 +435,14 @@ export default function HostDashboard() {
 
   // ============================================================
   // RECRUITMENT auto-advance — once the lone traitor picks, give the
-  // dramatic phone animation a few seconds, then continue.
+  // dramatic phone animation a few seconds, then start round 5's
+  // challenge phase.
   // ============================================================
   useEffect(() => {
     if (phase !== 'recruitment') return;
     if (!gameState.recruitedPlayer) return;
     const t = setTimeout(() => {
-      updateGameState({ phase: 'lobby_between_rounds', recruitedPlayer: null });
+      handleStartChallenge();
     }, 7000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -680,7 +656,7 @@ export default function HostDashboard() {
           MURDER REVEAL
           Two stages — click to reveal so the room can hold the moment.
           ============================================================ */}
-      {phase === 'murderReveal' && !murderRevealed && (
+      {phase === 'murderReveal' && murderRevealStage === 'pending' && (
         <div className="fade-in" style={{ textAlign: 'center', padding: '60px 20px' }}>
           <div style={{
             fontFamily: 'var(--font-display)',
@@ -697,7 +673,7 @@ export default function HostDashboard() {
           </p>
           <button
             className="btn btn-primary btn-lg"
-            onClick={() => setMurderRevealed(true)}
+            onClick={() => setMurderRevealStage('cycling')}
             style={{
               fontSize: '1.1rem',
               padding: '14px 36px',
@@ -709,7 +685,15 @@ export default function HostDashboard() {
         </div>
       )}
 
-      {phase === 'murderReveal' && murderRevealed && (
+      {phase === 'murderReveal' && murderRevealStage === 'cycling' && (
+        <ShortListSlotMachine
+          target={murderTarget}
+          alivePlayers={alivePlayers}
+          onComplete={() => setMurderRevealStage('final')}
+        />
+      )}
+
+      {phase === 'murderReveal' && murderRevealStage === 'final' && (
         <div className="fade-in">
           {shieldBlocked ? (
             <div style={{ textAlign: 'center', padding: '30px 20px' }}>
@@ -911,6 +895,15 @@ export default function HostDashboard() {
                   Skip to Second Mission
                 </button>
               </>
+            ) : round === 1 ? (
+              <>
+                <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
+                  No roundtable on the first night — the traitors strike unopposed.
+                </p>
+                <button className="btn btn-primary" onClick={handleStartNight}>
+                  Begin Night Phase
+                </button>
+              </>
             ) : round >= 7 ? (
               <>
                 <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
@@ -922,15 +915,10 @@ export default function HostDashboard() {
               </>
             ) : (
               <>
-                {round === 1 && (
-                  <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
-                    No banishment on the first night — the traitors strike unopposed after the night.
-                  </p>
-                )}
-                <button className="btn btn-primary" onClick={handleStartNight}>
-                  Begin Night Phase
+                <button className="btn btn-primary" onClick={handleAdvanceToRoundtable}>
+                  Proceed to Roundtable
                 </button>
-                <button className="btn btn-dark" onClick={handleStartNight}>
+                <button className="btn btn-dark" onClick={handleAdvanceToRoundtable}>
                   Skip Challenge
                 </button>
               </>
@@ -940,126 +928,32 @@ export default function HostDashboard() {
       )}
 
       {/* ============================================================
-          ROUNDTABLE — ALL SIGNED + OPTIONAL RESPONSES ON THE TV
-          (Discussion happens IRL while everyone reads.)
+          ROUNDTABLE — IRL discussion + tap-the-banished picker.
+          (No digital scroll-reading; the room talks it out then the
+          host taps whoever the room voted to banish.)
           ============================================================ */}
       {phase === 'roundtable' && (
         <div className="fade-in">
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <div style={{
               fontFamily: 'var(--font-display)',
-              fontSize: '2rem',
+              fontSize: '2.2rem',
               color: 'var(--gold)',
               letterSpacing: 4,
               animation: 'candleFlicker 3s infinite',
             }}>
               THE ROUNDTABLE
             </div>
-            <p style={{ color: 'var(--text-dim)', marginTop: 5 }}>
-              Read. Discuss. Accuse. (Vote on paper when you're ready.)
-            </p>
-          </div>
-
-          {roundtableGroups.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 30, fontFamily: 'var(--font-heading)', color: 'var(--text-dim)' }}>
-              No public scrolls this round.
-            </div>
-          ) : (
-            roundtableGroups.map((group, idx) => (
-              <div key={idx} className="panel" style={{ margin: '20px 0' }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 6,
-                }}>
-                  <div style={{
-                    fontFamily: 'var(--font-heading)',
-                    fontSize: '0.75rem',
-                    color: group.mode === 'signed' ? 'var(--gold)' : 'var(--crimson-light)',
-                    letterSpacing: 2,
-                  }}>
-                    {group.mode === 'signed' ? 'SIGNED SCROLLS' : 'ANONYMOUS-OPTIONAL SCROLLS'}
-                  </div>
-                  {group.totalCount > group.responses.length && (
-                    <div style={{
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: '0.7rem',
-                      color: 'var(--text-dim)',
-                      letterSpacing: 1.5,
-                    }}>
-                      A SAMPLE OF {group.responses.length} / {group.totalCount}
-                    </div>
-                  )}
-                </div>
-                <div style={{
-                  fontFamily: 'var(--font-body)',
-                  fontStyle: 'italic',
-                  fontSize: '1.15rem',
-                  color: 'var(--gold)',
-                  marginBottom: 14,
-                }}>
-                  "{group.prompt}"
-                </div>
-                {group.responses.map((r, i) => (
-                  <div key={i} style={{
-                    padding: '10px 14px',
-                    margin: '8px 0',
-                    background: 'rgba(0,0,0,0.3)',
-                    borderLeft: `3px solid ${r.author ? 'var(--gold)' : 'var(--stone-light, #555)'}`,
-                    borderRadius: 4,
-                  }}>
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', color: 'var(--text)', lineHeight: 1.4 }}>
-                      {r.text}
-                    </div>
-                    <div style={{
-                      marginTop: 6,
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: '0.7rem',
-                      letterSpacing: 2,
-                      color: r.author ? 'var(--gold)' : 'var(--text-dim)',
-                    }}>
-                      — {r.author || 'ANONYMOUS'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))
-          )}
-
-          <PortraitWall players={players} revealedRoles={revealedRoles} />
-
-          <div className="host-controls" style={{ marginTop: 20 }}>
-            <button className="btn btn-primary btn-lg" onClick={handleAdvanceToIRLVote}>
-              Begin Banishment Vote (Paper)
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================
-          IRL PAPER VOTE — tap whoever the room banished
-          ============================================================ */}
-      {phase === 'irlVote' && (
-        <div className="fade-in">
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            <div style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '2rem',
-              color: 'var(--crimson-light)',
-              letterSpacing: 4,
-            }}>
-              CAST YOUR VOTES ON PAPER
-            </div>
-            <p style={{ color: 'var(--text-dim)', marginTop: 8, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' }}>
-              Write your banishment vote on a slip. When the room has agreed, tap the banished player below.
+            <p style={{ color: 'var(--text-dim)', marginTop: 6, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' }}>
+              Discuss in person. When the room agrees on who to banish,
+              tap their portrait below.
             </p>
           </div>
 
           <div className="panel" style={{ maxWidth: 880, margin: '20px auto' }}>
             <h3 style={{
               fontFamily: 'var(--font-heading)',
-              color: 'var(--gold)',
+              color: 'var(--crimson-light)',
               fontSize: '0.9rem',
               letterSpacing: 2,
               marginBottom: 12,
@@ -1089,17 +983,15 @@ export default function HostDashboard() {
             </div>
             <div style={{ textAlign: 'center', marginTop: 16 }}>
               <button className="btn btn-sm btn-dark" onClick={handleNoBanishment}>
-                No banishment this round
+                No one banished (skip)
               </button>
             </div>
           </div>
-
-          <PortraitWall players={players} revealedRoles={revealedRoles} />
         </div>
       )}
 
       {/* ============================================================
-          BANISHMENT REVEAL — paper vote already chosen, dramatic role reveal
+          BANISHMENT REVEAL — chosen player + dramatic role reveal
           ============================================================ */}
       {phase === 'banishmentReveal' && (
         <div className="fade-in">
@@ -1687,6 +1579,128 @@ function TraitorRevealAnimation({ players }) {
           CHECK YOUR PHONES
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// SHORT-LIST SLOT MACHINE — cycles through alive non-traitors at
+// a high frame rate, slows down, then locks on the murder target.
+// Calls onComplete when the locked phase has held for ~1.5s so the
+// parent can swap to the final dramatic reveal screen.
+// ============================================================
+function ShortListSlotMachine({ target, alivePlayers, onComplete }) {
+  const candidates = (alivePlayers || []).filter(p => p?.role !== 'traitor');
+  const [shownIdx, setShownIdx] = useState(0);
+  const [locked, setLocked] = useState(false);
+
+  useEffect(() => {
+    if (candidates.length === 0) {
+      const t = setTimeout(onComplete, 600);
+      return () => clearTimeout(t);
+    }
+    let cancelled = false;
+    let idx = 0;
+    const startTime = Date.now();
+    let timerId;
+
+    const tick = () => {
+      if (cancelled) return;
+      const elapsed = Date.now() - startTime;
+
+      let nextDelay;
+      if (elapsed < 2200) {
+        nextDelay = 75;          // fast cycling
+      } else if (elapsed < 3000) {
+        nextDelay = 160;         // slowing
+      } else if (elapsed < 3600) {
+        nextDelay = 320;         // crawling
+      } else {
+        // Lock on the actual target
+        const lockIdx = target
+          ? Math.max(0, candidates.findIndex(p => p.name === target))
+          : 0;
+        setShownIdx(lockIdx);
+        setLocked(true);
+        timerId = setTimeout(onComplete, 1500);
+        return;
+      }
+
+      idx = (idx + 1) % candidates.length;
+      setShownIdx(idx);
+      timerId = setTimeout(tick, nextDelay);
+    };
+    tick();
+
+    return () => { cancelled = true; clearTimeout(timerId); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const candidate = candidates[shownIdx] || null;
+
+  return (
+    <div className="fade-in" style={{ textAlign: 'center', padding: '30px 20px', minHeight: 480 }}>
+      <div style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: 'clamp(1.5rem, 4vw, 2.4rem)',
+        color: locked ? 'var(--crimson-light)' : 'var(--text-dim)',
+        letterSpacing: 4,
+        marginBottom: 20,
+        animation: 'candleFlicker 3s infinite',
+        transition: 'color 0.5s',
+      }}>
+        {locked ? 'THE TRAITORS CHOSE…' : "ON THE TRAITORS' SHORT LIST…"}
+      </div>
+
+      {candidate ? (
+        <div
+          key={candidate.name + (locked ? '-locked' : '-' + shownIdx)}
+          style={{
+            display: 'inline-block',
+            position: 'relative',
+            transform: locked ? 'scale(1.1)' : 'scale(1)',
+            transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            filter: locked
+              ? 'drop-shadow(0 0 40px rgba(220,20,60,0.95))'
+              : 'drop-shadow(0 0 12px rgba(220,20,60,0.5))',
+          }}
+        >
+          <PlayerPortrait
+            name={candidate.name}
+            photo={candidate.photo}
+            width={280}
+            border={`3px solid ${locked ? 'var(--crimson-light)' : 'var(--crimson-dark, #8b0000)'}`}
+          />
+          {locked && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '6rem',
+              transform: 'rotate(-22deg)',
+              filter: 'drop-shadow(0 0 18px rgba(139,0,0,0.95))',
+              pointerEvents: 'none',
+            }}>🗡️</div>
+          )}
+        </div>
+      ) : (
+        <div style={{ height: 280 }} />
+      )}
+
+      <div style={{
+        marginTop: 18,
+        fontFamily: 'var(--font-display)',
+        fontSize: locked ? 'clamp(2.4rem, 7vw, 4rem)' : 'clamp(1.6rem, 4.5vw, 2.6rem)',
+        color: locked ? 'var(--crimson-light)' : 'var(--text-dim)',
+        textShadow: locked ? '0 0 30px rgba(139,0,0,0.85)' : 'none',
+        letterSpacing: 4,
+        transition: 'font-size 0.5s, color 0.5s',
+        minHeight: 60,
+      }}>
+        {candidate?.name || ''}
+      </div>
     </div>
   );
 }
