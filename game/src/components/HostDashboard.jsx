@@ -152,6 +152,17 @@ export default function HostDashboard() {
     });
   }
 
+  // New flow: challenge (award shields) BEFORE night, so traitors can see
+  // who's protected when they pick a target.
+  async function handleStartChallenge() {
+    await updateGameState({
+      phase: 'challenge',
+      murderTarget: null,
+      banishedPlayer: null,
+      shieldBlocked: false,
+    });
+  }
+
   async function handleStartNight() {
     // Generate prompts for this round
     const prompts = selectPrompts(config.promptsPerRound, usedPrompts);
@@ -202,12 +213,37 @@ export default function HostDashboard() {
       target = tied[Math.floor(Math.random() * tied.length)];
     }
 
-    // Store murder target but don't apply yet — murder reveal comes after roundtable
-    await updateGameState({
-      phase: 'challenge',
-      murderTarget: target || null,
-      shieldBlocked: false,
-    });
+    // Shields were already awarded during the challenge phase BEFORE night,
+    // so we skip the challenge transition here. Round 1 has no banishment,
+    // so it goes straight to murder reveal; later rounds head to the
+    // roundtable so the group can read the scrolls.
+    if (round === 1) {
+      let shieldWasBlocked = false;
+      if (target) {
+        const snap = await get(playersRef);
+        const targetPlayer = (snap.val() || {})[target];
+        if (targetPlayer?.status === 'alive') {
+          if (targetPlayer.shield) {
+            await updatePlayerShield(target, false);
+            shieldWasBlocked = true;
+          } else {
+            await updatePlayerStatus(target, 'murdered');
+          }
+        }
+      }
+      await updateGameState({
+        phase: 'murderReveal',
+        murderTarget: target || null,
+        shieldBlocked: shieldWasBlocked,
+        banishedPlayer: null,
+      });
+    } else {
+      await updateGameState({
+        phase: 'roundtable',
+        murderTarget: target || null,
+        shieldBlocked: false,
+      });
+    }
   }
 
   async function handleAdvanceToChallenge() {
@@ -306,13 +342,11 @@ export default function HostDashboard() {
   async function handleNextRound() {
     const next = round + 1;
     await updateGameState({ round: next });
-    if (next >= 7) {
-      // Final phase: skip night entirely, go straight to challenge.
-      // No more murders from here on; only sequential banishments.
-      await updateGameState({ phase: 'challenge', murderTarget: null });
-    } else {
-      handleStartNight();
-    }
+    // Challenge always comes first now (shields awarded BEFORE night).
+    // Round 7+ still skips night — that branch is handled inside the
+    // challenge UI (button reads "Proceed to Roundtable" instead of
+    // "Begin Night Phase").
+    await handleStartChallenge();
   }
 
   // Manual "the room agrees to end the game" button for round 7.
@@ -613,8 +647,8 @@ export default function HostDashboard() {
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--text-dim)', margin: '20px 0' }}>
               All players: check your phones now.
             </p>
-            <button className="btn btn-primary btn-lg" onClick={handleStartNight} style={{ marginTop: 20 }}>
-              Begin Night Phase
+            <button className="btn btn-primary btn-lg" onClick={handleStartChallenge} style={{ marginTop: 20 }}>
+              Begin Challenge Round
             </button>
           </div>
           <PortraitWall players={players} />
@@ -869,16 +903,7 @@ export default function HostDashboard() {
           </div>
 
           <div className="host-controls" style={{ marginTop: 20 }}>
-            {round === 1 ? (
-              <>
-                <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
-                  No banishment on the first night — the traitors strike unopposed.
-                </p>
-                <button className="btn btn-primary" onClick={handleNoBanishment}>
-                  Reveal the Night's Outcome
-                </button>
-              </>
-            ) : round === 3 && missionStage === 1 ? (
+            {round === 3 && missionStage === 1 ? (
               <>
                 <button className="btn btn-primary" onClick={() => setMissionStage(2)}>
                   Begin Second Mission
@@ -887,12 +912,26 @@ export default function HostDashboard() {
                   Skip to Second Mission
                 </button>
               </>
-            ) : (
+            ) : round >= 7 ? (
               <>
+                <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
+                  Final phase — no more murders. Sequential banishments only.
+                </p>
                 <button className="btn btn-primary" onClick={handleAdvanceToRoundtable}>
                   Proceed to Roundtable
                 </button>
-                <button className="btn btn-dark" onClick={handleAdvanceToRoundtable}>
+              </>
+            ) : (
+              <>
+                {round === 1 && (
+                  <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2, textAlign: 'center', width: '100%', marginBottom: 10, fontStyle: 'italic' }}>
+                    No banishment on the first night — the traitors strike unopposed after the night.
+                  </p>
+                )}
+                <button className="btn btn-primary" onClick={handleStartNight}>
+                  Begin Night Phase
+                </button>
+                <button className="btn btn-dark" onClick={handleStartNight}>
                   Skip Challenge
                 </button>
               </>

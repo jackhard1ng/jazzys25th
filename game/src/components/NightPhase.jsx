@@ -37,18 +37,20 @@ export default function NightPhase({
 
   const minChars = config.minCharCount || 15;
 
-  // Initialize responses array when prompts load
+  // Reset all per-round state whenever the round number changes (or the
+  // host kicks off a fresh set of prompts mid-round). Without this, a
+  // player who finished round 1 would still see the "all submitted"
+  // screen when round 2's prompts arrive — they'd have to refresh.
   useEffect(() => {
-    if (prompts.length > 0 && responses.length === 0) {
-      setResponses(new Array(prompts.length).fill(''));
-      setSignedFlags(new Array(prompts.length).fill(false));
-      setCurrentPromptIdx(0);
-      setCurrentText('');
-      setSignCurrent(false);
-      setAllSubmitted(false);
-      setBonusMode(false);
-    }
-  }, [prompts.length]);
+    setResponses(new Array(prompts.length).fill(''));
+    setSignedFlags(new Array(prompts.length).fill(false));
+    setCurrentPromptIdx(0);
+    setCurrentText('');
+    setSignCurrent(false);
+    setAllSubmitted(false);
+    setBonusMode(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round, prompts.length]);
 
   // When advancing to a new prompt, reset the per-prompt sign toggle.
   useEffect(() => {
