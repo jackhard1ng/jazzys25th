@@ -25,6 +25,16 @@ export default function HostDashboard() {
   const [revealedRoles, setRevealedRoles] = useState({});
   const [usedPrompts, setUsedPrompts] = useState(new Set());
   const [endgameRevealed, setEndgameRevealed] = useState([]);
+  // Two-stage murder reveal: PRESS TO REVEAL → animation
+  const [murderRevealed, setMurderRevealed] = useState(false);
+  useEffect(() => {
+    if (phase !== 'murderReveal') setMurderRevealed(false);
+  }, [phase]);
+  // Round 3 has TWO missions back-to-back. Track which one we're on.
+  const [missionStage, setMissionStage] = useState(1);
+  useEffect(() => {
+    if (phase !== 'challenge') setMissionStage(1);
+  }, [phase, round]);
 
   // ============================================================
   // ROUNDTABLE GROUPS — one bucket per public prompt, with a SAMPLE
@@ -238,7 +248,32 @@ export default function HostDashboard() {
   }
 
   // Step 2 of banishment: apply the murder + advance to murder reveal.
+  // Round 7+: no murder, loop back to roundtable for the next banishment.
   async function handleContinueAfterBanishment() {
+    if (round >= 7) {
+      // Round 7+ is sequential banishments only — no murder.
+      // Check end-of-game first; otherwise return to roundtable for the next banishment cycle.
+      const snap = await get(playersRef);
+      const alive = Object.values(snap.val() || {}).filter(p => p.status === 'alive');
+      const aliveT = alive.filter(p => p.role === 'traitor');
+      const aliveF = alive.filter(p => p.role === 'faithful');
+      if (aliveT.length === 0) {
+        await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
+      } else if (aliveT.length >= aliveF.length) {
+        await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
+      } else if (alive.length <= 2) {
+        // 2 left and the room hasn't manually ended → auto-end. Traitors
+        // win at parity; otherwise faithful win (no traitor remaining).
+        await updateGameState({
+          phase: 'endgame',
+          winCondition: aliveT.length > 0 ? 'traitors' : 'faithful',
+        });
+      } else {
+        await updateGameState({ phase: 'roundtable', banishedPlayer: null });
+      }
+      return;
+    }
+
     let shieldWasBlocked = false;
     if (murderTarget) {
       const snap = await get(playersRef);
@@ -258,8 +293,26 @@ export default function HostDashboard() {
   }
 
   async function handleNextRound() {
-    await updateGameState({ round: round + 1 });
-    handleStartNight();
+    const next = round + 1;
+    await updateGameState({ round: next });
+    if (next >= 7) {
+      // Final phase: skip night entirely, go straight to challenge.
+      // No more murders from here on; only sequential banishments.
+      await updateGameState({ phase: 'challenge', murderTarget: null });
+    } else {
+      handleStartNight();
+    }
+  }
+
+  // Manual "the room agrees to end the game" button for round 7.
+  // Win condition follows the show: any traitor still alive → traitors win.
+  async function handlePlayersEndGame() {
+    if (!window.confirm('End the game now? The remaining players choose to stop banishing.')) return;
+    const snap = await get(playersRef);
+    const alive = Object.values(snap.val() || {}).filter(p => p.status === 'alive');
+    const aliveT = alive.filter(p => p.role === 'traitor');
+    const winner = aliveT.length > 0 ? 'traitors' : 'faithful';
+    await updateGameState({ phase: 'endgame', winCondition: winner });
   }
 
   async function handleAwardShield(playerName) {
@@ -301,21 +354,46 @@ export default function HostDashboard() {
   }, [phase]);
 
   // ============================================================
+  // PAUSE — actually pauses the night auto-end and shifts the timer
+  // forward by however long we were paused. So "Pause" + "Resume"
+  // gives the room a real breather without the timer ticking.
+  // ============================================================
+  async function handlePause() {
+    if (!paused) {
+      await updateGameState({ paused: true, pausedAt: Date.now() });
+    } else {
+      const pausedDur = gameState.pausedAt ? Date.now() - gameState.pausedAt : 0;
+      const updates = { paused: false, pausedAt: null };
+      if (timerEnd && pausedDur > 0) {
+        updates.timerEnd = timerEnd + pausedDur;
+      }
+      await updateGameState(updates);
+    }
+  }
+
+  // ============================================================
   // NIGHT auto-advance when timer expires + 3s grace.
   // Hostless: nobody has to click "End Night."
+  // Pausing the game blocks this — perfect for "give the traitors
+  // another minute" moments.
   // ============================================================
   useEffect(() => {
     if (phase !== 'night' || !timerEnd) return;
+    if (paused) return; // pause halts the auto-end
     const remaining = timerEnd - Date.now();
     const t = setTimeout(() => {
       if (typeof handleEndNight === 'function') handleEndNight();
     }, Math.max(0, remaining) + 3000);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, timerEnd]);
+  }, [phase, timerEnd, paused]);
 
   // ============================================================
-  // ADVANCE AFTER MURDER REVEAL — check win conditions
+  // ADVANCE AFTER MURDER REVEAL — check win conditions / recruitment
+  //   - 0 traitors → faithful win
+  //   - traitor parity → traitors win
+  //   - 1 traitor left at end of rounds 1-6 → recruitment phase
+  //   - otherwise next round
   // ============================================================
   async function handleAdvanceAfterMurder() {
     const snap = await get(playersRef);
@@ -328,10 +406,27 @@ export default function HostDashboard() {
       await updateGameState({ phase: 'endgame', winCondition: 'faithful' });
     } else if (aliveT.length >= aliveF.length) {
       await updateGameState({ phase: 'endgame', winCondition: 'traitors' });
+    } else if (aliveT.length === 1 && round >= 1 && round <= 6) {
+      // Lone traitor recruits a faithful before round (round+1) starts
+      await updateGameState({ phase: 'recruitment', recruitedPlayer: null });
     } else {
       await updateGameState({ phase: 'lobby_between_rounds' });
     }
   }
+
+  // ============================================================
+  // RECRUITMENT auto-advance — once the lone traitor picks, give the
+  // dramatic phone animation a few seconds, then continue.
+  // ============================================================
+  useEffect(() => {
+    if (phase !== 'recruitment') return;
+    if (!gameState.recruitedPlayer) return;
+    const t = setTimeout(() => {
+      updateGameState({ phase: 'lobby_between_rounds', recruitedPlayer: null });
+    }, 7000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, gameState.recruitedPlayer]);
 
   // ============================================================
   // RENDER
@@ -539,8 +634,38 @@ export default function HostDashboard() {
 
       {/* ============================================================
           MURDER REVEAL
+          Two stages — click to reveal so the room can hold the moment.
           ============================================================ */}
-      {phase === 'murderReveal' && (
+      {phase === 'murderReveal' && !murderRevealed && (
+        <div className="fade-in" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 'clamp(1.6rem, 4vw, 2.4rem)',
+            color: 'var(--text-dim)',
+            letterSpacing: 4,
+            marginBottom: 14,
+            animation: 'candleFlicker 3s infinite',
+          }}>
+            THE NIGHT HAS ENDED
+          </div>
+          <p style={{ color: 'var(--gold-pale, #f0d080)', fontFamily: 'var(--font-body)', fontStyle: 'italic', fontSize: '1.2rem', marginBottom: 36 }}>
+            The traitors have made their choice.
+          </p>
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={() => setMurderRevealed(true)}
+            style={{
+              fontSize: '1.1rem',
+              padding: '14px 36px',
+              letterSpacing: 3,
+            }}
+          >
+            🗡️ Reveal the Victim
+          </button>
+        </div>
+      )}
+
+      {phase === 'murderReveal' && murderRevealed && (
         <div className="fade-in">
           {shieldBlocked ? (
             <div style={{ textAlign: 'center', padding: '30px 20px' }}>
@@ -676,10 +801,14 @@ export default function HostDashboard() {
             animation: 'candleFlicker 3s infinite',
             margin: '30px 0',
           }}>
-            CHALLENGE ROUND
+            {round === 3 ? `MISSION ${missionStage} OF 2` : 'CHALLENGE ROUND'}
           </div>
           <p style={{ fontSize: '1.3rem', color: 'var(--text-dim)', marginBottom: 30 }}>
-            The winner earns a shield — protection from murder for one night.
+            {round === 3 && missionStage === 1
+              ? 'The first mission. Award a shield to the winner — then run a second mission.'
+              : round === 3 && missionStage === 2
+              ? 'The second mission. Award another shield to a different winner.'
+              : 'The winner earns a shield — protection from murder for one night.'}
           </p>
 
           <PortraitWall players={players} revealedRoles={revealedRoles} />
@@ -736,6 +865,15 @@ export default function HostDashboard() {
                 </p>
                 <button className="btn btn-primary" onClick={handleNoBanishment}>
                   Reveal the Night's Outcome
+                </button>
+              </>
+            ) : round === 3 && missionStage === 1 ? (
+              <>
+                <button className="btn btn-primary" onClick={() => setMissionStage(2)}>
+                  Begin Second Mission
+                </button>
+                <button className="btn btn-dark" onClick={() => setMissionStage(2)}>
+                  Skip to Second Mission
                 </button>
               </>
             ) : (
@@ -1048,6 +1186,52 @@ export default function HostDashboard() {
       )}
 
       {/* ============================================================
+          RECRUITMENT — TV display while the lone traitor picks
+          ============================================================ */}
+      {phase === 'recruitment' && (
+        <div className="fade-in" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 'clamp(1.8rem, 5vw, 2.8rem)',
+            color: 'var(--crimson-light)',
+            letterSpacing: 5,
+            textShadow: '0 0 28px rgba(139,0,0,0.8)',
+            animation: 'candleFlicker 2s infinite',
+            marginBottom: 24,
+          }}>
+            {gameState.recruitedPlayer
+              ? 'A NEW TRAITOR HAS BEEN CHOSEN'
+              : 'A NEW TRAITOR IS BEING CHOSEN…'}
+          </div>
+          <p style={{
+            fontFamily: 'var(--font-body)',
+            fontStyle: 'italic',
+            color: 'var(--gold-pale, #f0d080)',
+            fontSize: '1.2rem',
+            maxWidth: 560,
+            margin: '0 auto 24px',
+            lineHeight: 1.6,
+          }}>
+            {gameState.recruitedPlayer
+              ? 'The traitor council has been replenished. Trust no one.'
+              : 'The remaining traitor must convert one of the faithful to their cause.'}
+          </p>
+          {gameState.recruitedPlayer && (
+            <p style={{
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--text-dim)',
+              letterSpacing: 2,
+              fontSize: '0.85rem',
+              marginTop: 30,
+            }}>
+              CHECK YOUR PHONE…
+            </p>
+          )}
+          <PortraitWall players={players} revealedRoles={revealedRoles} />
+        </div>
+      )}
+
+      {/* ============================================================
           BETWEEN ROUNDS
           ============================================================ */}
       {phase === 'lobby_between_rounds' && (
@@ -1286,9 +1470,51 @@ export default function HostDashboard() {
           }}>
             {alivePlayers.length} players alive
           </span>
+          {phase === 'night' && (
+            <button className="btn btn-sm btn-dark" onClick={handlePause}>
+              {paused ? '▶ Resume' : '⏸ Pause'}
+            </button>
+          )}
+          {round >= 7 && phase !== 'lobby_between_rounds' && (
+            <button
+              className="btn btn-sm"
+              onClick={handlePlayersEndGame}
+              style={{
+                background: 'rgba(218,165,32,0.2)',
+                border: '1px solid var(--gold)',
+                color: 'var(--gold)',
+                fontFamily: 'var(--font-heading)',
+                letterSpacing: 1.5,
+              }}
+            >
+              End the Game
+            </button>
+          )}
           <button className="btn btn-sm btn-dark" onClick={handleResetGame}>
             Reset
           </button>
+        </div>
+      )}
+
+      {/* Paused indicator — visible during night when paused */}
+      {paused && phase === 'night' && (
+        <div style={{
+          position: 'fixed',
+          top: 12,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(218,165,32,0.2)',
+          border: '1px solid var(--gold)',
+          color: 'var(--gold)',
+          padding: '6px 18px',
+          borderRadius: 20,
+          fontFamily: 'var(--font-heading)',
+          fontSize: '0.85rem',
+          letterSpacing: 3,
+          zIndex: 60,
+          backdropFilter: 'blur(8px)',
+        }}>
+          ⏸ NIGHT PAUSED
         </div>
       )}
     </div>

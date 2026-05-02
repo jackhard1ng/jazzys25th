@@ -127,17 +127,19 @@ function shuffle(arr) {
 }
 
 // ============================================================
-// TRAITOR COUNT — scales with player count to keep the game
-// playable. With ~20% traitor ratio, a faithful side has time
-// to actually catch a traitor before parity ends the game.
-//
-// For Jazzy's actual party (12-18 players): 80% → 4, 20% → 3.
+// TRAITOR COUNT — Jazzy's party (17 attendees expected):
+//   65% → 3 traitors
+//   20% → 2 traitors
+//   15% → 4 traitors
 // Smaller groups (testing) get a sane proportional pick.
 // ============================================================
-export function pickTraitorCount(playerCount = 18) {
-  if (playerCount <= 5) return 1;             // tiny test group
-  if (playerCount <= 8) return 2;             // small (would be 4-vs-3 instant-loss otherwise)
+export function pickTraitorCount(playerCount = 17) {
+  if (playerCount <= 5) return 1;
+  if (playerCount <= 8) return 2;
   if (playerCount <= 11) return Math.random() < 0.30 ? 2 : 3;
-  // Real party size: 80/20 between 4 and 3
-  return Math.random() < 0.20 ? 3 : 4;
+  // Real party size (12+): the host's chosen distribution
+  const r = Math.random();
+  if (r < 0.65) return 3;
+  if (r < 0.85) return 2;
+  return 4;
 }

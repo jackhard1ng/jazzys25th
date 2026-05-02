@@ -180,6 +180,11 @@ export async function updatePlayerRole(name, role) {
   await update(getPlayerRef(name), { role });
 }
 
+// Recruit a faithful into the traitor side (lone-traitor mechanic).
+export async function recruitTraitor(name) {
+  await update(getPlayerRef(name), { role: 'traitor', recruited: true });
+}
+
 // Update player photo (base64 data URL)
 export async function updatePlayerPhoto(name, photoDataUrl) {
   await update(getPlayerRef(name), { photo: photoDataUrl });

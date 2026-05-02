@@ -5,7 +5,7 @@ import NightPhase from './NightPhase';
 import SpectatorMode from './SpectatorMode';
 import PlayerPortrait from './PlayerPortrait';
 import { PRESET_PLAYERS } from '../presetPlayers';
-import { addPlayer } from '../firebase';
+import { addPlayer, recruitTraitor, updateGameState } from '../firebase';
 
 // ============================================================
 // PLAYER SCREEN — the mobile phone experience
@@ -283,6 +283,24 @@ export default function PlayerScreen() {
           </div>
         )}
       </div>
+    );
+  }
+
+  // ============================================================
+  // RECRUITMENT — three views depending on who you are:
+  //   1. Lone surviving traitor: pick a faithful to convert
+  //   2. The just-recruited player: dramatic "YOU ARE A TRAITOR" reveal
+  //   3. Everyone else: ambient "darkness gathers" screen
+  // ============================================================
+  if (phase === 'recruitment') {
+    return (
+      <RecruitmentPhone
+        player={player}
+        playerName={playerName}
+        players={players}
+        alivePlayers={alivePlayers}
+        gameState={gameState}
+      />
     );
   }
 
@@ -803,6 +821,148 @@ function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPic
           Connecting to server...
         </p>
       )}
+    </div>
+  );
+}
+
+
+// ============================================================
+// RECRUITMENT PHONE — three branches by player role/state
+// ============================================================
+function RecruitmentPhone({ player, playerName, players, alivePlayers, gameState }) {
+  const recruitedName = gameState?.recruitedPlayer || null;
+  const isLoneTraitor = player?.role === "traitor" && !recruitedName;
+  const wasJustRecruited = recruitedName === playerName;
+
+  // Lone traitor: pick UI
+  if (isLoneTraitor) {
+    const candidates = alivePlayers.filter(p => p.role !== "traitor");
+    return (
+      <div className="player-screen" style={{ padding: 20 }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.6rem",
+            color: "var(--crimson-light)",
+            letterSpacing: 4,
+            textShadow: "0 0 20px rgba(139,0,0,0.7)",
+            marginBottom: 8,
+            animation: "candleFlicker 3s infinite",
+          }}>
+            YOU STAND ALONE
+          </div>
+          <p style={{ color: "var(--gold-pale, #f0d080)", fontStyle: "italic", fontSize: "1rem", marginBottom: 6 }}>
+            The traitor council has fallen. Choose a faithful to convert to your cause.
+          </p>
+          <p style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>
+            Choose wisely. They will know everything.
+          </p>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+          {candidates.map(p => (
+            <button
+              key={p.name}
+              onClick={async () => {
+                await recruitTraitor(p.name);
+                await updateGameState({ recruitedPlayer: p.name });
+              }}
+              style={{
+                background: "transparent",
+                border: "2px solid transparent",
+                borderRadius: 6,
+                padding: 3,
+                cursor: "pointer",
+              }}
+              onTouchStart={e => { e.currentTarget.style.borderColor = "var(--crimson-light)"; }}
+            >
+              <PlayerPortrait name={p.name} photo={p.photo} width={90} />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Just-recruited player: dramatic conversion screen
+  if (wasJustRecruited) {
+    return (
+      <div className="player-screen" style={{
+        background: "radial-gradient(ellipse at center, rgba(139,0,0,0.4), var(--black))",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}>
+        <div className="fade-in-scale" style={{ textAlign: "center" }}>
+          <div style={{
+            fontFamily: "var(--font-heading)",
+            fontSize: "0.9rem",
+            color: "var(--text-dim)",
+            letterSpacing: 4,
+            marginBottom: 18,
+          }}>
+            DARKNESS HAS FOUND YOU
+          </div>
+          <div style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "clamp(2.4rem, 9vw, 3.6rem)",
+            color: "var(--crimson-light)",
+            letterSpacing: 6,
+            textShadow: "0 0 40px rgba(139,0,0,0.95), 0 0 80px rgba(220,20,60,0.5)",
+            marginBottom: 14,
+            animation: "candleFlicker 2s infinite",
+          }}>
+            YOU ARE A TRAITOR
+          </div>
+          <p style={{
+            fontFamily: "var(--font-body)",
+            fontStyle: "italic",
+            color: "var(--gold-pale, #f0d080)",
+            fontSize: "1.1rem",
+            maxWidth: 320,
+            lineHeight: 1.5,
+            marginBottom: 14,
+          }}>
+            You have been recruited to the traitor council. Trust no one. Suspect everyone.
+          </p>
+          <p style={{
+            fontFamily: "var(--font-heading)",
+            color: "var(--gold)",
+            fontSize: "0.8rem",
+            letterSpacing: 3,
+          }}>
+            REVEAL NOTHING.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Everyone else: ambient screen
+  return (
+    <div className="player-screen" style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+    }}>
+      <div className="fade-in" style={{ textAlign: "center" }}>
+        <div style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "1.4rem",
+          color: "var(--crimson-light)",
+          letterSpacing: 4,
+          marginBottom: 8,
+          animation: "candleFlicker 3s infinite",
+        }}>
+          DARKNESS GATHERS
+        </div>
+        <p style={{ color: "var(--text-dim)", fontStyle: "italic", maxWidth: 320 }}>
+          The traitor council is being replenished. Watch the TV.
+        </p>
+      </div>
     </div>
   );
 }
