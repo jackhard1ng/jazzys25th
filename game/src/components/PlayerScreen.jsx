@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import useGame from '../hooks/useGame';
 import Timer from './Timer';
 import NightPhase from './NightPhase';
@@ -57,6 +58,10 @@ export default function PlayerScreen() {
     if (!p) return;
     if (p.sessionId && p.sessionId === mySessionId) {
       setJoined(true);
+    } else {
+      // Someone else owns this name — clear the stale localStorage and force re-entry.
+      localStorage.removeItem('traitors_name');
+      setPlayerName('');
     }
   }, [playerName, players, joined, mySessionId]);
 
@@ -821,6 +826,21 @@ function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPic
           Connecting to server...
         </p>
       )}
+
+      <Link
+        to="/host"
+        style={{
+          marginTop: 30,
+          color: 'var(--text-dim)',
+          fontFamily: 'var(--font-heading)',
+          fontSize: '0.7rem',
+          letterSpacing: 2,
+          textDecoration: 'none',
+          opacity: 0.6,
+        }}
+      >
+        HOST DASHBOARD →
+      </Link>
     </div>
   );
 }

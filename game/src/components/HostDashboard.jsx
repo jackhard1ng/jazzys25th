@@ -88,12 +88,23 @@ export default function HostDashboard() {
   // GAME PHASE HANDLERS
   // ============================================================
 
+  // Soft reset: clears game state (roles, votes, scrolls, etc.) but KEEPS the
+  // current roster of players logged in so they don't have to rejoin.
   async function handleResetGame() {
-    if (!window.confirm('Reset the entire game? This cannot be undone.')) return;
+    if (!window.confirm('Reset to the lobby? Players stay joined; their roles, votes, and round progress are cleared.')) return;
     setRevealedRoles({});
     setUsedPrompts(new Set());
     setEndgameRevealed([]);
     await resetGame();
+  }
+
+  // Hard reset: also removes every player. Only use if starting completely fresh.
+  async function handleWipeGame() {
+    if (!window.confirm('FULL WIPE: this will also remove every player from the game. Continue?')) return;
+    setRevealedRoles({});
+    setUsedPrompts(new Set());
+    setEndgameRevealed([]);
+    await resetGame({ wipePlayers: true });
   }
 
   async function handleAddPresetPlayer(name) {
@@ -1492,6 +1503,9 @@ export default function HostDashboard() {
           )}
           <button className="btn btn-sm btn-dark" onClick={handleResetGame}>
             Reset
+          </button>
+          <button className="btn btn-sm btn-dark" onClick={handleWipeGame} title="Full wipe — also removes all players">
+            Wipe
           </button>
         </div>
       )}
