@@ -704,7 +704,11 @@ export default function HostDashboard() {
       {phase === 'murderReveal' && murderRevealStage === 'cycling' && (
         <ShortListSlotMachine
           target={murderTarget}
-          alivePlayers={alivePlayers}
+          // Pass the FULL players object (not just alivePlayers) — the
+          // murder target was just marked 'murdered' in Firebase, so
+          // they'd be missing from alivePlayers and the slot machine
+          // would lock on the wrong person.
+          players={players}
           onComplete={() => {
             setMurderRevealStage('final');
             // Tell the player phones the reveal has played — they'll
@@ -1612,8 +1616,19 @@ function TraitorRevealAnimation({ players }) {
 // Calls onComplete when the locked phase has held for ~1.5s so the
 // parent can swap to the final dramatic reveal screen.
 // ============================================================
-function ShortListSlotMachine({ target, alivePlayers, onComplete }) {
-  const candidates = (alivePlayers || []).filter(p => p?.role !== 'traitor');
+function ShortListSlotMachine({ target, players, onComplete }) {
+  // Short list = anyone who could have been targeted: non-traitors who
+  // are still around (alive OR just-murdered, since the target was
+  // marked murdered in Firebase before this component mounted). We
+  // explicitly include the target by name so findIndex never misses it.
+  const candidates = (() => {
+    const list = Object.values(players || {})
+      .filter(p => p?.role !== 'traitor' && p?.status !== 'banished');
+    if (target && players?.[target] && !list.find(p => p.name === target)) {
+      list.push(players[target]);
+    }
+    return list;
+  })();
   const [shownIdx, setShownIdx] = useState(0);
   const [locked, setLocked] = useState(false);
 
