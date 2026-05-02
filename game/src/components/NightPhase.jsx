@@ -4,7 +4,7 @@ import PlayerPortrait from './PlayerPortrait';
 import useTimer from '../hooks/useTimer';
 import {
   submitScrolls, sendTraitorMessage, submitMurderVote,
-  onValue, ref, db,
+  onValue, get, ref, db,
 } from '../firebase';
 
 // ============================================================
@@ -14,9 +14,51 @@ import {
 // ============================================================
 export default function NightPhase({
   player, playerName, isTraitor, alivePlayers, config,
-  nightPhase, timerEnd, round, traitorChat, murderVotes,
+  nightPrompts, nightPhase, timerEnd, round, traitorChat, murderVotes,
 }) {
-  const prompts = nightPhase?.prompts || [];
+  // Prompts now ride along inside game/state (single atomic update with
+  // phase). That eliminates the cross-ref race where phase='night' would
+  // arrive before /game/nightPhase did and players saw an empty screen
+  // until they refreshed. We keep the legacy nightPhase fallback in case
+  // a stale write path ever lands.
+  const promptsFromState = Array.isArray(nightPrompts)
+    ? nightPrompts
+    : nightPrompts ? Object.values(nightPrompts) : [];
+  const promptsFromLegacy = Array.isArray(nightPhase?.prompts)
+    ? nightPhase.prompts
+    : nightPhase?.prompts ? Object.values(nightPhase.prompts) : [];
+
+  const [fetchedPrompts, setFetchedPrompts] = useState(null);
+
+  // Defensive fetch as a third path — if both subscriptions somehow
+  // missed it (suspended WebSocket, etc.), the on-mount get() guarantees
+  // we have the data.
+  useEffect(() => {
+    let cancelled = false;
+    get(ref(db, 'game/state')).then(snap => {
+      if (cancelled) return;
+      const v = snap.val() || {};
+      if (Array.isArray(v.nightPrompts) && v.nightPrompts.length) {
+        setFetchedPrompts(v.nightPrompts);
+      }
+    }).catch(() => {});
+    // Live subscription on /game/state — independent of useGame's
+    // subscription so even if that one is stuck, this picks up updates.
+    const off = onValue(ref(db, 'game/state'), snap => {
+      if (cancelled) return;
+      const v = snap.val() || {};
+      if (Array.isArray(v.nightPrompts)) {
+        setFetchedPrompts(v.nightPrompts);
+      }
+    });
+    return () => { cancelled = true; off(); };
+  }, [round]);
+
+  // Pick the first non-empty source.
+  const prompts = (promptsFromState.length && promptsFromState)
+    || (fetchedPrompts && fetchedPrompts.length && fetchedPrompts)
+    || (promptsFromLegacy.length && promptsFromLegacy)
+    || [];
   const { timeLeft, isExpired } = useTimer(timerEnd);
 
   // Prompt responses (parallel arrays: text + signed flag) — one entry per prompt
