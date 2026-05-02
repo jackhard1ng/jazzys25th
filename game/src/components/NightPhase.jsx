@@ -14,41 +14,51 @@ import {
 // ============================================================
 export default function NightPhase({
   player, playerName, isTraitor, alivePlayers, config,
-  nightPhase, timerEnd, round, traitorChat, murderVotes,
+  nightPrompts, nightPhase, timerEnd, round, traitorChat, murderVotes,
 }) {
-  // Keep our own copy of the prompts. Seed it with whatever the parent
-  // passed (via the shared useGame subscription), but also subscribe
-  // directly to /game/nightPhase ourselves and re-fetch on mount with
-  // get(). This belt-and-suspenders approach prevents the "I have to
-  // refresh to see scrolls" bug when the shared subscription is slow
-  // or has been suspended by the mobile browser.
-  const [localNightPhase, setLocalNightPhase] = useState(nightPhase);
+  // Prompts now ride along inside game/state (single atomic update with
+  // phase). That eliminates the cross-ref race where phase='night' would
+  // arrive before /game/nightPhase did and players saw an empty screen
+  // until they refreshed. We keep the legacy nightPhase fallback in case
+  // a stale write path ever lands.
+  const promptsFromState = Array.isArray(nightPrompts)
+    ? nightPrompts
+    : nightPrompts ? Object.values(nightPrompts) : [];
+  const promptsFromLegacy = Array.isArray(nightPhase?.prompts)
+    ? nightPhase.prompts
+    : nightPhase?.prompts ? Object.values(nightPhase.prompts) : [];
 
+  const [fetchedPrompts, setFetchedPrompts] = useState(null);
+
+  // Defensive fetch as a third path — if both subscriptions somehow
+  // missed it (suspended WebSocket, etc.), the on-mount get() guarantees
+  // we have the data.
   useEffect(() => {
     let cancelled = false;
-    // 1. Direct one-time fetch — guaranteed fresh data on mount.
-    get(ref(db, 'game/nightPhase')).then(snap => {
+    get(ref(db, 'game/state')).then(snap => {
       if (cancelled) return;
-      const v = snap.val();
-      if (v) setLocalNightPhase(v);
+      const v = snap.val() || {};
+      if (Array.isArray(v.nightPrompts) && v.nightPrompts.length) {
+        setFetchedPrompts(v.nightPrompts);
+      }
     }).catch(() => {});
-
-    // 2. Live subscription — picks up changes mid-round.
-    const off = onValue(ref(db, 'game/nightPhase'), snap => {
+    // Live subscription on /game/state — independent of useGame's
+    // subscription so even if that one is stuck, this picks up updates.
+    const off = onValue(ref(db, 'game/state'), snap => {
       if (cancelled) return;
-      const v = snap.val();
-      if (v) setLocalNightPhase(v);
+      const v = snap.val() || {};
+      if (Array.isArray(v.nightPrompts)) {
+        setFetchedPrompts(v.nightPrompts);
+      }
     });
     return () => { cancelled = true; off(); };
   }, [round]);
 
-  // Whenever the parent prop changes (subscription delivered an update),
-  // mirror it into local state so we never fall behind.
-  useEffect(() => {
-    if (nightPhase) setLocalNightPhase(nightPhase);
-  }, [nightPhase]);
-
-  const prompts = localNightPhase?.prompts || [];
+  // Pick the first non-empty source.
+  const prompts = (promptsFromState.length && promptsFromState)
+    || (fetchedPrompts && fetchedPrompts.length && fetchedPrompts)
+    || (promptsFromLegacy.length && promptsFromLegacy)
+    || [];
   const { timeLeft, isExpired } = useTimer(timerEnd);
 
   // Prompt responses (parallel arrays: text + signed flag) — one entry per prompt

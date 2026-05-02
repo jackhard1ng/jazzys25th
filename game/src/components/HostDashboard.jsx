@@ -172,22 +172,32 @@ export default function HostDashboard() {
     prompts.forEach(p => newUsed.add(p.text));
     setUsedPrompts(newUsed);
 
-    // Store prompts in Firebase so players can read them
-    await set(ref(db, 'game/nightPhase'), {
-      active: true,
-      prompts: prompts.map(p => ({ text: p.text, mode: p.mode })),
-    });
+    const promptsPayload = prompts.map(p => ({ text: p.text, mode: p.mode }));
 
-    await clearVotes();
-    await clearTraitorChat();
-    await set(ref(db, 'game/murderVotes'), {});
+    // ATOMIC: write phase + prompts + timer to /game/state in ONE update.
+    // Players' single stateRef subscription gets everything in one event,
+    // so they can never see phase='night' without prompts (which was
+    // forcing them to refresh because of a cross-ref race condition).
+    const end = Date.now() + (config.nightDuration * 1000);
     await updateGameState({
       phase: 'night',
       murderTarget: null,
       banishedPlayer: null,
       shieldBlocked: false,
+      nightPrompts: promptsPayload,
+      timerEnd: end,
+      timerDuration: config.nightDuration,
     });
-    await startTimer(config.nightDuration);
+
+    // Mirror to legacy /game/nightPhase for backwards-compat (some old
+    // logic still references it). Non-critical — players don't depend on it.
+    await set(ref(db, 'game/nightPhase'), {
+      active: true,
+      prompts: promptsPayload,
+    });
+    await clearVotes();
+    await clearTraitorChat();
+    await set(ref(db, 'game/murderVotes'), {});
   }
 
   async function handleEndNight() {
@@ -234,6 +244,9 @@ export default function HostDashboard() {
       phase: 'murderReveal',
       murderTarget: target || null,
       shieldBlocked: shieldWasBlocked,
+      nightPrompts: null, // wipe so the next round starts fresh
+      timerEnd: null,
+      timerDuration: null,
     });
   }
 

@@ -19,7 +19,7 @@ export default function PlayerScreen() {
     connected,
   } = useGame();
 
-  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition } = gameState;
+  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, nightPrompts } = gameState;
 
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('traitors_name') || '');
   const [joined, setJoined] = useState(false);
@@ -323,6 +323,7 @@ export default function PlayerScreen() {
         isTraitor={isTraitor}
         alivePlayers={alivePlayers}
         config={config}
+        nightPrompts={nightPrompts}
         nightPhase={nightPhase}
         timerEnd={timerEnd}
         round={round}
