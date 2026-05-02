@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import useGame from '../hooks/useGame';
 import useTimer from '../hooks/useTimer';
 import Timer from './Timer';
@@ -6,6 +7,18 @@ import NightPhase from './NightPhase';
 import VotingScreen from './VotingScreen';
 import SpectatorMode from './SpectatorMode';
 import { addPlayer, updatePlayerPhoto } from '../firebase';
+
+// Per-browser session ID — proves "I'm the same person who joined as this name"
+// so a different device can't accidentally take over your identity.
+function getSessionId() {
+  let id = localStorage.getItem('traitors_session');
+  if (!id) {
+    id = (crypto.randomUUID && crypto.randomUUID()) ||
+      (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+    localStorage.setItem('traitors_session', id);
+  }
+  return id;
+}
 
 // ============================================================
 // PLAYER SCREEN — the mobile phone experience
@@ -23,22 +36,33 @@ export default function PlayerScreen() {
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('traitors_name') || '');
   const [joined, setJoined] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [joinError, setJoinError] = useState('');
   const [roleRevealed, setRoleRevealed] = useState(false);
   const [showRole, setShowRole] = useState(false);
   const fileInputRef = useRef(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  const sessionId = getSessionId();
   const player = players[playerName] || null;
   const isAlive = player?.status === 'alive';
   const isTraitor = player?.role === 'traitor';
   const isFaithful = player?.role === 'faithful';
 
-  // Auto-rejoin if name is in localStorage and player exists
+  // Auto-rejoin only if THIS browser owns the player record (matching sessionId).
+  // This prevents accidentally inheriting someone else's identity when a stale
+  // name lingers in localStorage.
   useEffect(() => {
-    if (playerName && players[playerName] && !joined) {
+    if (!playerName || joined) return;
+    const existing = players[playerName];
+    if (!existing) return;
+    if (!existing.sessionId || existing.sessionId === sessionId) {
       setJoined(true);
+    } else {
+      // Someone else owns this name — clear the stale localStorage and force re-entry.
+      localStorage.removeItem('traitors_name');
+      setPlayerName('');
     }
-  }, [playerName, players, joined]);
+  }, [playerName, players, joined, sessionId]);
 
   // Role reveal animation
   useEffect(() => {
@@ -55,20 +79,14 @@ export default function PlayerScreen() {
   async function handleJoin() {
     const name = nameInput.trim();
     if (!name) return;
-    const success = await addPlayer(name);
-    if (success) {
+    setJoinError('');
+    const result = await addPlayer(name, sessionId);
+    if (result.ok) {
       setPlayerName(name);
       localStorage.setItem('traitors_name', name);
       setJoined(true);
-    } else {
-      // Name already taken or exists — try to rejoin
-      if (players[name]) {
-        setPlayerName(name);
-        localStorage.setItem('traitors_name', name);
-        setJoined(true);
-      } else {
-        alert('That name is already taken. Try a different name.');
-      }
+    } else if (result.reason === 'taken') {
+      setJoinError(`"${name}" is already in the game on another device. Pick a different name (try adding your last initial).`);
     }
   }
 
@@ -158,6 +176,18 @@ export default function PlayerScreen() {
           >
             Join
           </button>
+          {joinError && (
+            <p style={{
+              color: 'var(--crimson-light)',
+              marginTop: 12,
+              fontFamily: 'var(--font-heading)',
+              fontSize: '0.8rem',
+              letterSpacing: 1,
+              textAlign: 'center',
+            }}>
+              {joinError}
+            </p>
+          )}
         </div>
 
         {!connected && (
@@ -165,6 +195,21 @@ export default function PlayerScreen() {
             Connecting to server...
           </p>
         )}
+
+        <Link
+          to="/host"
+          style={{
+            marginTop: 30,
+            color: 'var(--text-dim)',
+            fontFamily: 'var(--font-heading)',
+            fontSize: '0.7rem',
+            letterSpacing: 2,
+            textDecoration: 'none',
+            opacity: 0.6,
+          }}
+        >
+          HOST DASHBOARD →
+        </Link>
       </div>
     );
   }

@@ -42,8 +42,29 @@ export const getMurderVoteRef = (name) => ref(db, `game/murderVotes/${name}`);
 // CORE DATABASE OPERATIONS
 // ============================================================
 
-// Initialize/reset the entire game
-export async function resetGame() {
+// Initialize/reset the entire game.
+// By default we PRESERVE the player roster (and their photos) so people don't
+// have to rejoin between back-to-back games. Pass { wipePlayers: true } to do a
+// full wipe (e.g. starting a brand new party with a different crew).
+export async function resetGame({ wipePlayers = false } = {}) {
+  let preservedPlayers = {};
+  if (!wipePlayers) {
+    const snap = await get(playersRef);
+    const existing = snap.val() || {};
+    Object.entries(existing).forEach(([name, p]) => {
+      preservedPlayers[name] = {
+        name: p.name,
+        role: null,
+        status: 'alive',
+        shield: false,
+        connected: true,
+        joinedAt: p.joinedAt || Date.now(),
+        ...(p.sessionId ? { sessionId: p.sessionId } : {}),
+        ...(p.photo ? { photo: p.photo } : {}),
+      };
+    });
+  }
+
   await set(gameRef, {
     state: {
       phase: 'lobby', // lobby, roleReveal, night, murderReveal, challenge, roundtable, voting, banishmentReveal, endgame
@@ -65,7 +86,7 @@ export async function resetGame() {
       minCharCount: 15,
       shieldsEnabled: true,
     },
-    players: {},
+    players: preservedPlayers,
     votes: {},
     scrolls: {},
     traitorChat: {},
@@ -74,13 +95,32 @@ export async function resetGame() {
   });
 }
 
-// Add a player to the game
-export async function addPlayer(name) {
+// Add a player to the game.
+// Returns: { ok: true, sessionId } on success, or
+//          { ok: false, reason: 'taken' } if a different session already owns the name.
+// If a record exists with the SAME sessionId, this is treated as a rejoin and succeeds.
+export async function addPlayer(name, sessionId) {
   const sanitized = name.trim();
-  if (!sanitized) return false;
+  if (!sanitized) return { ok: false, reason: 'empty' };
   const playerRef = getPlayerRef(sanitized);
   const snapshot = await get(playerRef);
-  if (snapshot.exists()) return false; // already exists
+
+  if (snapshot.exists()) {
+    const existing = snapshot.val();
+    // Existing record with no sessionId yet (e.g. host pre-added the name) → claim it.
+    if (!existing.sessionId) {
+      await update(playerRef, { sessionId, connected: true });
+      return { ok: true, sessionId };
+    }
+    // Same session reconnecting → allow rejoin.
+    if (existing.sessionId === sessionId) {
+      await update(playerRef, { connected: true });
+      return { ok: true, sessionId };
+    }
+    // Different session trying to use the same name → block.
+    return { ok: false, reason: 'taken' };
+  }
+
   await set(playerRef, {
     name: sanitized,
     role: null, // 'faithful' or 'traitor'
@@ -88,8 +128,9 @@ export async function addPlayer(name) {
     shield: false,
     connected: true,
     joinedAt: Date.now(),
+    sessionId,
   });
-  return true;
+  return { ok: true, sessionId };
 }
 
 // Remove a player
