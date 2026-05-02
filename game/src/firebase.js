@@ -80,9 +80,9 @@ export async function resetGame({ wipePlayers = false } = {}) {
       paused: false,
     },
     config: {
-      numTraitors: 3,
-      nightDuration: 150, // seconds (2.5 min)
-      promptsPerRound: 4,
+      numTraitors: 4, // overwritten by weighted random pick at game start
+      nightDuration: 120, // seconds (2 min)
+      promptsPerRound: 3, // 1 signed + 1 optional + 1 filler
       minCharCount: 15,
       shieldsEnabled: true,
     },
@@ -96,12 +96,13 @@ export async function resetGame({ wipePlayers = false } = {}) {
 }
 
 // Add a player to the game.
-// Returns: { ok: true, sessionId } on success, or
-//          { ok: false, reason: 'taken' } if a different session already owns the name.
-// If a record exists with the SAME sessionId, this is treated as a rejoin and succeeds.
+// Returns true on success (created OR same-session rejoin OR claiming an
+// unowned record). Returns false when a different session already owns the
+// name. Caller should check `players[name]` before calling so a friendlier
+// "taken" UI can be shown.
 export async function addPlayer(name, sessionId) {
   const sanitized = name.trim();
-  if (!sanitized) return { ok: false, reason: 'empty' };
+  if (!sanitized) return false;
   const playerRef = getPlayerRef(sanitized);
   const snapshot = await get(playerRef);
 
@@ -109,16 +110,16 @@ export async function addPlayer(name, sessionId) {
     const existing = snapshot.val();
     // Existing record with no sessionId yet (e.g. host pre-added the name) → claim it.
     if (!existing.sessionId) {
-      await update(playerRef, { sessionId, connected: true });
-      return { ok: true, sessionId };
+      await update(playerRef, { sessionId: sessionId || null, connected: true });
+      return true;
     }
     // Same session reconnecting → allow rejoin.
-    if (existing.sessionId === sessionId) {
+    if (sessionId && existing.sessionId === sessionId) {
       await update(playerRef, { connected: true });
-      return { ok: true, sessionId };
+      return true;
     }
     // Different session trying to use the same name → block.
-    return { ok: false, reason: 'taken' };
+    return false;
   }
 
   await set(playerRef, {
@@ -127,10 +128,10 @@ export async function addPlayer(name, sessionId) {
     status: 'alive', // alive, murdered, banished
     shield: false,
     connected: true,
+    sessionId: sessionId || null,
     joinedAt: Date.now(),
-    sessionId,
   });
-  return { ok: true, sessionId };
+  return true;
 }
 
 // Remove a player
@@ -218,6 +219,11 @@ export async function updatePlayerShield(name, hasShield) {
 // Update player role (for host manual override or endgame reveal)
 export async function updatePlayerRole(name, role) {
   await update(getPlayerRef(name), { role });
+}
+
+// Recruit a faithful into the traitor side (lone-traitor mechanic).
+export async function recruitTraitor(name) {
+  await update(getPlayerRef(name), { role: 'traitor', recruited: true });
 }
 
 // Update player photo (base64 data URL)

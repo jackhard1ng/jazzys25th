@@ -1,24 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import useGame from '../hooks/useGame';
-import useTimer from '../hooks/useTimer';
 import Timer from './Timer';
 import NightPhase from './NightPhase';
-import VotingScreen from './VotingScreen';
 import SpectatorMode from './SpectatorMode';
-import { addPlayer, updatePlayerPhoto } from '../firebase';
-
-// Per-browser session ID — proves "I'm the same person who joined as this name"
-// so a different device can't accidentally take over your identity.
-function getSessionId() {
-  let id = localStorage.getItem('traitors_session');
-  if (!id) {
-    id = (crypto.randomUUID && crypto.randomUUID()) ||
-      (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
-    localStorage.setItem('traitors_session', id);
-  }
-  return id;
-}
+import PlayerPortrait from './PlayerPortrait';
+import { PRESET_PLAYERS } from '../presetPlayers';
+import { addPlayer, recruitTraitor, updateGameState } from '../firebase';
 
 // ============================================================
 // PLAYER SCREEN — the mobile phone experience
@@ -27,7 +15,7 @@ function getSessionId() {
 export default function PlayerScreen() {
   const {
     players, playerList, alivePlayers,
-    gameState, config, votes, traitorChat, murderVotes, nightPhase,
+    gameState, config, traitorChat, murderVotes, nightPhase,
     connected,
   } = useGame();
 
@@ -36,33 +24,46 @@ export default function PlayerScreen() {
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('traitors_name') || '');
   const [joined, setJoined] = useState(false);
   const [nameInput, setNameInput] = useState('');
-  const [joinError, setJoinError] = useState('');
   const [roleRevealed, setRoleRevealed] = useState(false);
   const [showRole, setShowRole] = useState(false);
-  const fileInputRef = useRef(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  // Stable per-device session id. Only the device that first claimed
+  // a portrait can re-claim it on refresh — so leftover localStorage
+  // from earlier testing won't hijack someone else's pick.
+  const sessionIdRef = useRef(null);
+  if (sessionIdRef.current === null) {
+    let sid = localStorage.getItem('traitors_session_id');
+    if (!sid) {
+      sid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem('traitors_session_id', sid);
+    }
+    sessionIdRef.current = sid;
+  }
+  const mySessionId = sessionIdRef.current;
 
-  const sessionId = getSessionId();
   const player = players[playerName] || null;
   const isAlive = player?.status === 'alive';
   const isTraitor = player?.role === 'traitor';
   const isFaithful = player?.role === 'faithful';
 
-  // Auto-rejoin only if THIS browser owns the player record (matching sessionId).
-  // This prevents accidentally inheriting someone else's identity when a stale
-  // name lingers in localStorage.
+  // Auto-rejoin ONLY when the player record in Firebase has the same
+  // sessionId this device stored when it originally picked the portrait.
+  // Without this guard, any phone with leftover localStorage would
+  // hijack a portrait the moment someone else picked it.
   useEffect(() => {
-    if (!playerName || joined) return;
-    const existing = players[playerName];
-    if (!existing) return;
-    if (!existing.sessionId || existing.sessionId === sessionId) {
+    if (joined) return;
+    if (!playerName) return;
+    const p = players[playerName];
+    if (!p) return;
+    if (p.sessionId && p.sessionId === mySessionId) {
       setJoined(true);
     } else {
       // Someone else owns this name — clear the stale localStorage and force re-entry.
       localStorage.removeItem('traitors_name');
       setPlayerName('');
     }
-  }, [playerName, players, joined, sessionId]);
+  }, [playerName, players, joined, mySessionId]);
 
   // Role reveal animation
   useEffect(() => {
@@ -76,141 +77,65 @@ export default function PlayerScreen() {
     }
   }, [phase, player?.role, roleRevealed]);
 
-  async function handleJoin() {
-    const name = nameInput.trim();
+  async function handleJoinWithName(rawName) {
+    const name = String(rawName || '').trim();
     if (!name) return;
-    setJoinError('');
-    const result = await addPlayer(name, sessionId);
-    if (result.ok) {
+    const existing = players[name];
+    const ownedByMe = existing?.sessionId && existing.sessionId === mySessionId;
+    if (existing && !ownedByMe) {
+      alert(`${name} is already in the game on another device.`);
+      return;
+    }
+    const success = await addPlayer(name, mySessionId);
+    if (success || ownedByMe) {
       setPlayerName(name);
       localStorage.setItem('traitors_name', name);
       setJoined(true);
-    } else if (result.reason === 'taken') {
-      setJoinError(`"${name}" is already in the game on another device. Pick a different name (try adding your last initial).`);
     }
   }
 
-  // Compress and upload photo
-  async function handlePhotoUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file || !playerName) return;
-    setUploadingPhoto(true);
-    try {
-      const dataUrl = await compressImage(file, 150, 0.7);
-      await updatePlayerPhoto(playerName, dataUrl);
-    } catch (err) {
-      console.error('Photo upload failed:', err);
-    }
-    setUploadingPhoto(false);
-  }
-
-  function compressImage(file, maxSize, quality) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          // Crop to square from center
-          const size = Math.min(img.width, img.height);
-          const sx = (img.width - size) / 2;
-          const sy = (img.height - size) / 2;
-          canvas.width = maxSize;
-          canvas.height = maxSize;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
+  async function handleCustomNameSubmit() {
+    await handleJoinWithName(nameInput);
+    setNameInput('');
   }
 
   // ============================================================
-  // JOIN SCREEN
+  // GAME-IN-PROGRESS GATE — lobby locks once play begins
+  // ============================================================
+  if (!joined && phase !== 'lobby') {
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 24 }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '1.8rem',
+          color: 'var(--gold)',
+          letterSpacing: 4,
+          marginBottom: 15,
+          animation: 'candleFlicker 3s infinite',
+        }}>
+          THE GAME HAS BEGUN
+        </div>
+        <p style={{ color: 'var(--text-dim)', maxWidth: 320 }}>
+          The lobby is closed. Watch the TV with the others — the next game begins after this one ends.
+        </p>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // JOIN SCREEN — portrait gallery picker
   // ============================================================
   if (!joined) {
     return (
-      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: '2rem',
-          color: 'var(--gold)',
-          textAlign: 'center',
-          letterSpacing: 4,
-          animation: 'candleFlicker 3s infinite',
-          marginBottom: 10,
-        }}>
-          The Traitors
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: '1rem',
-          color: 'var(--text-dim)',
-          textAlign: 'center',
-          letterSpacing: 2,
-          marginBottom: 40,
-        }}>
-          Jazzy's Birthday
-        </div>
-
-        <div className="panel" style={{ width: '100%', maxWidth: 400 }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', marginBottom: 15, textAlign: 'center', letterSpacing: 2 }}>
-            ENTER THE GAME
-          </h2>
-          <input
-            className="input"
-            placeholder="Enter your name..."
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            autoFocus
-            style={{ marginBottom: 15, textAlign: 'center', fontSize: '1.3rem' }}
-          />
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={handleJoin}
-            disabled={!nameInput.trim()}
-            style={{ width: '100%' }}
-          >
-            Join
-          </button>
-          {joinError && (
-            <p style={{
-              color: 'var(--crimson-light)',
-              marginTop: 12,
-              fontFamily: 'var(--font-heading)',
-              fontSize: '0.8rem',
-              letterSpacing: 1,
-              textAlign: 'center',
-            }}>
-              {joinError}
-            </p>
-          )}
-        </div>
-
-        {!connected && (
-          <p style={{ color: 'var(--crimson-light)', marginTop: 20, fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
-            Connecting to server...
-          </p>
-        )}
-
-        <Link
-          to="/host"
-          style={{
-            marginTop: 30,
-            color: 'var(--text-dim)',
-            fontFamily: 'var(--font-heading)',
-            fontSize: '0.7rem',
-            letterSpacing: 2,
-            textDecoration: 'none',
-            opacity: 0.6,
-          }}
-        >
-          HOST DASHBOARD →
-        </Link>
-      </div>
+      <PortraitPickerJoin
+        connected={connected}
+        players={players}
+        nameInput={nameInput}
+        setNameInput={setNameInput}
+        onPick={handleJoinWithName}
+        onCustomSubmit={handleCustomNameSubmit}
+        mySessionId={mySessionId}
+      />
     );
   }
 
@@ -218,7 +143,7 @@ export default function PlayerScreen() {
   // SPECTATOR MODE (eliminated players)
   // ============================================================
   if (player && !isAlive && phase !== 'lobby' && phase !== 'endgame') {
-    return <SpectatorMode player={player} players={players} gameState={gameState} traitorChat={traitorChat} />;
+    return <SpectatorMode player={player} players={players} gameState={gameState} />;
   }
 
   // ============================================================
@@ -238,68 +163,59 @@ export default function PlayerScreen() {
           The Traitors
         </div>
 
-        <div className="panel" style={{ margin: '30px 0' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 5 }}>
-            Welcome, {playerName}
+        <div className="panel" style={{ margin: '24px 0', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 14, fontSize: '0.85rem' }}>
+            WELCOME
           </div>
-          <p style={{ color: 'var(--text-dim)' }}>Waiting for the host to start the game...</p>
-          <div style={{ marginTop: 15, color: 'var(--text-dim)', fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
-            {playerList.length} player{playerList.length !== 1 ? 's' : ''} connected
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+            <PlayerPortrait name={playerName} photo={player?.photo} width={180} />
           </div>
-        </div>
-
-        {/* Photo upload */}
-        <div className="panel" style={{ margin: '0 0 30px', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 10, fontSize: '0.85rem' }}>
-            ADD YOUR HEADSHOT
-          </div>
-          {player?.photo ? (
-            <div style={{ marginBottom: 10 }}>
-              <img
-                src={player.photo}
-                alt={playerName}
-                style={{
-                  width: 100, height: 100, borderRadius: '50%',
-                  border: '3px solid var(--gold-dark)',
-                  objectFit: 'cover',
-                }}
-              />
-            </div>
-          ) : (
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
-              Upload a photo so everyone knows who you are
-            </p>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            onChange={handlePhotoUpload}
-            style={{ display: 'none' }}
-          />
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button
-              className="btn btn-sm btn-gold"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingPhoto}
-            >
-              {uploadingPhoto ? 'Uploading...' : player?.photo ? 'Change Photo' : 'Take Selfie'}
-            </button>
+          <p style={{ color: 'var(--text-dim)', fontSize: '1rem', marginBottom: 6 }}>
+            Waiting for the game to begin…
+          </p>
+          <div style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', fontSize: '0.8rem', letterSpacing: 2 }}>
+            {playerList.length} PLAYER{playerList.length !== 1 ? 'S' : ''} CONNECTED
           </div>
         </div>
 
-        <div className="player-list" style={{ justifyContent: 'center' }}>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          justifyContent: 'center',
+          padding: '0 8px',
+        }}>
           {playerList.map(p => (
-            <div key={p.name} className="player-chip">
-              {p.photo ? (
-                <img src={p.photo} alt={p.name} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
-              ) : (
-                <span className="dot" />
-              )}
-              {p.name}
+            <div key={p.name} style={{ width: 64 }}>
+              <PlayerPortrait name={p.name} photo={p.photo} width={64} />
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // TRAITOR REVEAL — TV is playing the count animation.
+  // Phone shows ambient suspense; role pops on phase === 'roleReveal'.
+  // ============================================================
+  if (phase === 'traitorReveal') {
+    return (
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="fade-in" style={{ textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.4rem',
+            color: 'var(--crimson-light)',
+            letterSpacing: 4,
+            marginBottom: 10,
+            animation: 'candleFlicker 3s infinite',
+          }}>
+            FATES ARE BEING SEALED
+          </div>
+          <p style={{ color: 'var(--text-dim)', marginTop: 10 }}>
+            Watch the TV…
+          </p>
         </div>
       </div>
     );
@@ -372,6 +288,24 @@ export default function PlayerScreen() {
           </div>
         )}
       </div>
+    );
+  }
+
+  // ============================================================
+  // RECRUITMENT — three views depending on who you are:
+  //   1. Lone surviving traitor: pick a faithful to convert
+  //   2. The just-recruited player: dramatic "YOU ARE A TRAITOR" reveal
+  //   3. Everyone else: ambient "darkness gathers" screen
+  // ============================================================
+  if (phase === 'recruitment') {
+    return (
+      <RecruitmentPhone
+        player={player}
+        playerName={playerName}
+        players={players}
+        alivePlayers={alivePlayers}
+        gameState={gameState}
+      />
     );
   }
 
@@ -532,18 +466,29 @@ export default function PlayerScreen() {
   }
 
   // ============================================================
-  // VOTING
+  // IRL VOTE — paper voting in the room. Phone just says wait.
   // ============================================================
-  if (phase === 'voting') {
+  if (phase === 'irlVote') {
     return (
-      <VotingScreen
-        playerName={playerName}
-        alivePlayers={alivePlayers}
-        votes={votes}
-        timerEnd={timerEnd}
-        isTraitor={isTraitor}
-        hasShield={player?.shield}
-      />
+      <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="fade-in" style={{ textAlign: 'center', maxWidth: 320 }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.6rem',
+            color: 'var(--crimson-light)',
+            letterSpacing: 4,
+            marginBottom: 15,
+          }}>
+            VOTE ON PAPER
+          </div>
+          <p style={{ color: 'var(--text-dim)', marginBottom: 20 }}>
+            Write your banishment vote on a slip. The room will tap the result on the TV.
+          </p>
+          <span className="role-badge faithful">
+            {isTraitor ? 'Traitor' : 'Faithful'}
+          </span>
+        </div>
+      </div>
     );
   }
 
@@ -691,6 +636,352 @@ export default function PlayerScreen() {
     <div className="player-screen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div className="cinematic-text" style={{ fontSize: '1.5rem' }}>
         Awaiting the host...
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// PORTRAIT PICKER JOIN
+// "Pick your portrait" gallery, with a custom-name fallback for
+// guests who aren't on the preset roster.
+// ============================================================
+function PortraitPickerJoin({ connected, players, nameInput, setNameInput, onPick, onCustomSubmit, mySessionId }) {
+  const [showCustom, setShowCustom] = useState(false);
+
+  return (
+    <div className="player-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 12px 40px' }}>
+      <div style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: '1.8rem',
+        color: 'var(--gold)',
+        textAlign: 'center',
+        letterSpacing: 4,
+        animation: 'candleFlicker 3s infinite',
+        marginBottom: 6,
+      }}>
+        The Traitors
+      </div>
+      <div style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: '0.85rem',
+        color: 'var(--text-dim)',
+        textAlign: 'center',
+        letterSpacing: 2,
+        marginBottom: 24,
+      }}>
+        Jazzy's Birthday
+      </div>
+
+      {!showCustom ? (
+        <>
+          <h2 style={{
+            fontFamily: 'var(--font-heading)',
+            color: 'var(--gold)',
+            fontSize: '1rem',
+            letterSpacing: 3,
+            textAlign: 'center',
+            marginBottom: 18,
+          }}>
+            TAP YOUR PORTRAIT
+          </h2>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+            gap: 14,
+            width: '100%',
+            maxWidth: 600,
+            marginBottom: 24,
+          }}>
+            {PRESET_PLAYERS.map(name => {
+              const existing = players[name];
+              const taken = !!existing;
+              const isMine = taken && existing.sessionId && existing.sessionId === mySessionId;
+              const disabled = taken && !isMine;
+              return (
+                <button
+                  key={name}
+                  onClick={() => !disabled && onPick(name)}
+                  disabled={disabled}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    position: 'relative',
+                    width: '100%',
+                    transition: 'transform 0.15s, filter 0.15s',
+                  }}
+                  onTouchStart={e => { if (!disabled) e.currentTarget.style.transform = 'scale(0.96)'; }}
+                  onTouchEnd={e => { e.currentTarget.style.transform = ''; }}
+                >
+                  <PlayerPortrait
+                    name={name}
+                    width="100%"
+                    faded={disabled}
+                    glow={isMine}
+                  />
+                  {disabled && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%) rotate(-12deg)',
+                      background: 'var(--crimson-light, #dc143c)',
+                      color: 'var(--black, #0a0a0a)',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.75rem',
+                      letterSpacing: 2,
+                      padding: '4px 12px',
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                      pointerEvents: 'none',
+                    }}>
+                      TAKEN
+                    </div>
+                  )}
+                  {isMine && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 6,
+                      right: 6,
+                      background: 'var(--gold)',
+                      color: 'var(--black, #0a0a0a)',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.65rem',
+                      letterSpacing: 1.5,
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      pointerEvents: 'none',
+                    }}>
+                      YOU
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setShowCustom(true)}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--stone, #3a3a3a)',
+              color: 'var(--text-dim)',
+              fontFamily: 'var(--font-heading)',
+              fontSize: '0.8rem',
+              letterSpacing: 2,
+              padding: '10px 20px',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            I DON'T SEE MYSELF
+          </button>
+        </>
+      ) : (
+        <div className="panel" style={{ width: '100%', maxWidth: 360 }}>
+          <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--gold)', letterSpacing: 2, marginBottom: 14, textAlign: 'center', fontSize: '0.9rem' }}>
+            ENTER YOUR NAME
+          </h3>
+          <input
+            className="input"
+            placeholder="Your name..."
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onCustomSubmit()}
+            autoFocus
+            style={{ marginBottom: 12, textAlign: 'center', fontSize: '1.1rem' }}
+          />
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={onCustomSubmit}
+            disabled={!nameInput.trim()}
+            style={{ width: '100%', marginBottom: 10 }}
+          >
+            Join
+          </button>
+          <button
+            onClick={() => setShowCustom(false)}
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-dim)',
+              fontFamily: 'var(--font-heading)',
+              fontSize: '0.75rem',
+              letterSpacing: 2,
+              padding: 8,
+              cursor: 'pointer',
+            }}
+          >
+            ← BACK TO PORTRAITS
+          </button>
+        </div>
+      )}
+
+      {!connected && (
+        <p style={{ color: 'var(--crimson-light)', marginTop: 20, fontFamily: 'var(--font-heading)', fontSize: '0.85rem' }}>
+          Connecting to server...
+        </p>
+      )}
+
+      <Link
+        to="/host"
+        style={{
+          marginTop: 30,
+          color: 'var(--text-dim)',
+          fontFamily: 'var(--font-heading)',
+          fontSize: '0.7rem',
+          letterSpacing: 2,
+          textDecoration: 'none',
+          opacity: 0.6,
+        }}
+      >
+        HOST DASHBOARD →
+      </Link>
+    </div>
+  );
+}
+
+
+// ============================================================
+// RECRUITMENT PHONE — three branches by player role/state
+// ============================================================
+function RecruitmentPhone({ player, playerName, players, alivePlayers, gameState }) {
+  const recruitedName = gameState?.recruitedPlayer || null;
+  const isLoneTraitor = player?.role === "traitor" && !recruitedName;
+  const wasJustRecruited = recruitedName === playerName;
+
+  // Lone traitor: pick UI
+  if (isLoneTraitor) {
+    const candidates = alivePlayers.filter(p => p.role !== "traitor");
+    return (
+      <div className="player-screen" style={{ padding: 20 }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.6rem",
+            color: "var(--crimson-light)",
+            letterSpacing: 4,
+            textShadow: "0 0 20px rgba(139,0,0,0.7)",
+            marginBottom: 8,
+            animation: "candleFlicker 3s infinite",
+          }}>
+            YOU STAND ALONE
+          </div>
+          <p style={{ color: "var(--gold-pale, #f0d080)", fontStyle: "italic", fontSize: "1rem", marginBottom: 6 }}>
+            The traitor council has fallen. Choose a faithful to convert to your cause.
+          </p>
+          <p style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>
+            Choose wisely. They will know everything.
+          </p>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+          {candidates.map(p => (
+            <button
+              key={p.name}
+              onClick={async () => {
+                await recruitTraitor(p.name);
+                await updateGameState({ recruitedPlayer: p.name });
+              }}
+              style={{
+                background: "transparent",
+                border: "2px solid transparent",
+                borderRadius: 6,
+                padding: 3,
+                cursor: "pointer",
+              }}
+              onTouchStart={e => { e.currentTarget.style.borderColor = "var(--crimson-light)"; }}
+            >
+              <PlayerPortrait name={p.name} photo={p.photo} width={90} />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Just-recruited player: dramatic conversion screen
+  if (wasJustRecruited) {
+    return (
+      <div className="player-screen" style={{
+        background: "radial-gradient(ellipse at center, rgba(139,0,0,0.4), var(--black))",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}>
+        <div className="fade-in-scale" style={{ textAlign: "center" }}>
+          <div style={{
+            fontFamily: "var(--font-heading)",
+            fontSize: "0.9rem",
+            color: "var(--text-dim)",
+            letterSpacing: 4,
+            marginBottom: 18,
+          }}>
+            YOU HAVE BEEN SELECTED
+          </div>
+          <div style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "clamp(2.4rem, 9vw, 3.6rem)",
+            color: "var(--crimson-light)",
+            letterSpacing: 6,
+            textShadow: "0 0 40px rgba(139,0,0,0.95), 0 0 80px rgba(220,20,60,0.5)",
+            marginBottom: 14,
+            animation: "candleFlicker 2s infinite",
+          }}>
+            TO JOIN THE TRAITORS
+          </div>
+          <p style={{
+            fontFamily: "var(--font-body)",
+            fontStyle: "italic",
+            color: "var(--gold-pale, #f0d080)",
+            fontSize: "1.1rem",
+            maxWidth: 320,
+            lineHeight: 1.5,
+            marginBottom: 14,
+          }}>
+            The lone traitor has chosen you. There is no refusing the call. From this moment on, you serve the darkness.
+          </p>
+          <p style={{
+            fontFamily: "var(--font-heading)",
+            color: "var(--gold)",
+            fontSize: "0.8rem",
+            letterSpacing: 3,
+          }}>
+            REVEAL NOTHING.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Everyone else: ambient screen
+  return (
+    <div className="player-screen" style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+    }}>
+      <div className="fade-in" style={{ textAlign: "center" }}>
+        <div style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "1.4rem",
+          color: "var(--crimson-light)",
+          letterSpacing: 4,
+          marginBottom: 8,
+          animation: "candleFlicker 3s infinite",
+        }}>
+          DARKNESS GATHERS
+        </div>
+        <p style={{ color: "var(--text-dim)", fontStyle: "italic", maxWidth: 320 }}>
+          The traitor council is being replenished. Watch the TV.
+        </p>
       </div>
     </div>
   );

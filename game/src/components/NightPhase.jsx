@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Timer from './Timer';
+import PlayerPortrait from './PlayerPortrait';
 import useTimer from '../hooks/useTimer';
 import {
   submitScrolls, sendTraitorMessage, submitMurderVote,
@@ -18,15 +19,18 @@ export default function NightPhase({
   const prompts = nightPhase?.prompts || [];
   const { timeLeft, isExpired } = useTimer(timerEnd);
 
-  // Prompt responses
+  // Prompt responses (parallel arrays: text + signed flag)
   const [responses, setResponses] = useState([]);
+  const [signedFlags, setSignedFlags] = useState([]);
   const [currentPromptIdx, setCurrentPromptIdx] = useState(0);
   const [currentText, setCurrentText] = useState('');
+  const [signCurrent, setSignCurrent] = useState(false);
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [bonusMode, setBonusMode] = useState(false);
 
-  // Traitor chat
-  const [showTraitorChat, setShowTraitorChat] = useState(false);
+  // Traitor chat — default to SECRET tab so traitors don't have
+  // to hunt for it. They need this open to chat AND murder-vote.
+  const [showTraitorChat, setShowTraitorChat] = useState(isTraitor);
   const [chatInput, setChatInput] = useState('');
   const [murderTarget, setMurderTarget] = useState('');
   const chatEndRef = useRef(null);
@@ -37,12 +41,19 @@ export default function NightPhase({
   useEffect(() => {
     if (prompts.length > 0 && responses.length === 0) {
       setResponses(new Array(prompts.length).fill(''));
+      setSignedFlags(new Array(prompts.length).fill(false));
       setCurrentPromptIdx(0);
       setCurrentText('');
+      setSignCurrent(false);
       setAllSubmitted(false);
       setBonusMode(false);
     }
   }, [prompts.length]);
+
+  // When advancing to a new prompt, reset the per-prompt sign toggle.
+  useEffect(() => {
+    setSignCurrent(false);
+  }, [currentPromptIdx]);
 
   // Auto-scroll traitor chat
   useEffect(() => {
@@ -59,52 +70,79 @@ export default function NightPhase({
   const [bonusIdx, setBonusIdx] = useState(0);
   const [bonusText, setBonusText] = useState('');
 
+  function buildScrollData(textArr, signArr) {
+    return prompts.map((p, i) => {
+      const mode = p.mode || (p.isGame ? 'optional' : 'filler');
+      const signed = mode === 'signed' ? true
+        : mode === 'optional' ? !!signArr[i]
+        : false;
+      return {
+        text: textArr[i] || '',
+        mode,
+        prompt: p.text,
+        signed,
+      };
+    });
+  }
+
   function handleSubmitResponse() {
     if (currentText.length < minChars && !isTraitor) return;
 
     const newResponses = [...responses];
+    const newSigned = [...signedFlags];
     newResponses[currentPromptIdx] = currentText;
+    newSigned[currentPromptIdx] = signCurrent;
     setResponses(newResponses);
+    setSignedFlags(newSigned);
 
     if (currentPromptIdx < prompts.length - 1) {
       setCurrentPromptIdx(currentPromptIdx + 1);
       setCurrentText('');
     } else {
-      // All prompts answered — submit to Firebase
-      const scrollData = prompts.map((p, i) => ({
-        text: newResponses[i],
-        isGame: p.isGame,
-      }));
-      submitScrolls(round, playerName, scrollData);
+      submitScrolls(round, playerName, buildScrollData(newResponses, newSigned));
       setAllSubmitted(true);
       if (!isTraitor) setBonusMode(true);
     }
   }
 
   function handleSkipPrompt() {
-    // Traitors can skip prompts
     if (!isTraitor) return;
     const newResponses = [...responses];
+    const newSigned = [...signedFlags];
     newResponses[currentPromptIdx] = '';
+    newSigned[currentPromptIdx] = false;
     setResponses(newResponses);
+    setSignedFlags(newSigned);
 
     if (currentPromptIdx < prompts.length - 1) {
       setCurrentPromptIdx(currentPromptIdx + 1);
       setCurrentText('');
     } else {
-      const scrollData = prompts.map((p, i) => ({
-        text: newResponses[i],
-        isGame: p.isGame,
-      }));
-      submitScrolls(round, playerName, scrollData);
+      submitScrolls(round, playerName, buildScrollData(newResponses, newSigned));
       setAllSubmitted(true);
     }
   }
 
+  // Auto-submit whatever is typed when the timer hits zero.
+  useEffect(() => {
+    if (!isExpired || allSubmitted || prompts.length === 0) return;
+    const finalText = [...responses];
+    const finalSigned = [...signedFlags];
+    finalText[currentPromptIdx] = currentText; // capture in-progress prompt
+    finalSigned[currentPromptIdx] = signCurrent;
+    submitScrolls(round, playerName, buildScrollData(finalText, finalSigned));
+    setAllSubmitted(true);
+  }, [isExpired]);
+
   function handleBonusSubmit() {
     if (bonusText.length < minChars) return;
-    // Submit bonus as a game scroll
-    submitScrolls(round, `${playerName}_bonus_${bonusIdx}`, [{ text: bonusText, isGame: true }]);
+    // Bonus prompts are anonymous-optional scrolls (always anonymous here).
+    submitScrolls(round, `${playerName}_bonus_${bonusIdx}`, [{
+      text: bonusText,
+      mode: 'optional',
+      prompt: BONUS_PROMPTS[bonusIdx],
+      signed: false,
+    }]);
     setBonusText('');
     setBonusIdx(bonusIdx + 1);
   }
@@ -127,8 +165,10 @@ export default function NightPhase({
   const murderVoteEntries = Object.entries(murderVotes || {});
   const myMurderVote = murderVotes?.[playerName]?.target || murderTarget;
 
-  // Non-traitor targets for murder (alive, non-traitor)
-  const validTargets = alivePlayers.filter(p => p.role !== 'traitor');
+  // Murder targets: alive, non-traitor, and NOT shielded (shields are
+  // earned in the challenge round and protect that player from murder).
+  const validTargets = alivePlayers.filter(p => p.role !== 'traitor' && !p.shield);
+  const shieldedFaithful = alivePlayers.filter(p => p.role !== 'traitor' && p.shield);
 
   return (
     <div className="player-screen" style={{
@@ -227,6 +267,32 @@ export default function NightPhase({
                 </span>
               </div>
 
+              {/* Mode badge */}
+              {(() => {
+                const mode = prompts[currentPromptIdx]?.mode;
+                const badge = mode === 'signed'
+                  ? { label: 'PUBLIC · SIGNED', color: 'var(--gold)' }
+                  : mode === 'optional'
+                    ? { label: 'PUBLIC · YOU CHOOSE', color: 'var(--crimson-light)' }
+                    : { label: 'PRIVATE · COVER', color: 'var(--text-dim)' };
+                return (
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '0.65rem',
+                    letterSpacing: 2,
+                    color: badge.color,
+                    border: `1px solid ${badge.color}`,
+                    borderRadius: 4,
+                    marginBottom: 10,
+                    opacity: 0.9,
+                  }}>
+                    {badge.label}
+                  </div>
+                );
+              })()}
+
               {/* Prompt text */}
               <div style={{
                 fontFamily: 'var(--font-body)',
@@ -248,6 +314,51 @@ export default function NightPhase({
                 rows={3}
                 style={{ marginBottom: 10 }}
               />
+
+              {/* Sign-name UI: optional prompts only. Signed prompts are always signed. */}
+              {prompts[currentPromptIdx]?.mode === 'optional' && (
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 10,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.8rem',
+                  letterSpacing: 1,
+                  color: signCurrent ? 'var(--gold)' : 'var(--text-dim)',
+                  cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={signCurrent}
+                    onChange={e => setSignCurrent(e.target.checked)}
+                    style={{ accentColor: 'var(--gold)', width: 16, height: 16 }}
+                  />
+                  {signCurrent ? `Signed as ${playerName}` : 'Anonymous (tap to sign)'}
+                </label>
+              )}
+              {prompts[currentPromptIdx]?.mode === 'signed' && (
+                <div style={{
+                  marginBottom: 10,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.75rem',
+                  letterSpacing: 1,
+                  color: 'var(--gold)',
+                }}>
+                  This scroll will display your name on the TV.
+                </div>
+              )}
+              {prompts[currentPromptIdx]?.mode === 'filler' && (
+                <div style={{
+                  marginBottom: 10,
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '0.75rem',
+                  letterSpacing: 1,
+                  color: 'var(--text-dim)',
+                }}>
+                  This scroll is private — never displayed.
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
@@ -416,22 +527,58 @@ export default function NightPhase({
               MURDER VOTE
             </h3>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: 10 }}>
-              All traitors must agree on a target. Majority rules.
+              Vote early, change your mind freely. Majority rules. Ties at the end → cpu picks at random from the tied targets.
             </p>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {validTargets.map(p => (
-                <button
-                  key={p.name}
-                  className={`btn btn-sm ${myMurderVote === p.name ? 'btn-primary' : 'btn-dark'}`}
-                  onClick={() => handleMurderVote(p.name)}
-                  style={{ fontSize: '0.8rem', position: 'relative' }}
-                >
-                  {p.name}
-                  {p.shield && <span style={{ marginLeft: 4 }}>🛡️</span>}
-                </button>
-              ))}
-            </div>
+            {validTargets.length === 0 ? (
+              <p style={{ color: 'var(--crimson-light)', fontStyle: 'italic', fontSize: '0.9rem' }}>
+                No valid targets — every faithful is shielded tonight.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+                {validTargets.map(p => {
+                  const selected = myMurderVote === p.name;
+                  return (
+                    <button
+                      key={p.name}
+                      onClick={() => handleMurderVote(p.name)}
+                      style={{
+                        background: 'transparent',
+                        border: selected ? '2px solid var(--crimson-light)' : '2px solid transparent',
+                        borderRadius: 6,
+                        padding: 3,
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s',
+                      }}
+                    >
+                      <PlayerPortrait name={p.name} photo={p.photo} width={80} glow={selected} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {shieldedFaithful.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: 1.5, marginBottom: 6 }}>
+                  PROTECTED TONIGHT
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+                  {shieldedFaithful.map(p => (
+                    <div key={p.name} style={{ position: 'relative' }}>
+                      <PlayerPortrait name={p.name} photo={p.photo} width={64} faded />
+                      <div style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        fontSize: '1rem',
+                        filter: 'drop-shadow(0 0 6px rgba(218,165,32,0.8))',
+                      }}>🛡️</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Show current murder vote status */}
             {murderVoteEntries.length > 0 && (

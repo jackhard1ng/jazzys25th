@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master, main, claude/deploy-game-neIrE, claude/traitors-party-rsvp-site-hJVyW, claude/youthful-hawking-luhk1]
+    branches: [master, main, claude/deploy-game-neIrE, claude/traitors-party-rsvp-site-hJVyW, claude/youthful-hawking-luhk1, claude/fix-birthday-website-J286H]
 
 permissions:
   contents: read
