@@ -311,14 +311,15 @@ export default function HostDashboard() {
     const next = round + 1;
     await updateGameState({ round: next });
 
-    // ROUND 5 START: if exactly one traitor remains, give them the chance
-    // to recruit a faithful before the round begins. Recruitment auto-
-    // advances into the challenge phase once the lone traitor picks.
-    if (next === 5) {
+    // RECRUITMENT TRIGGER: at the start of any round 2-6, if exactly one
+    // traitor is alive AND more than 7 players are still in the game, the
+    // lone traitor gets to recruit a faithful before the round begins.
+    // (Rounds 1 and 7+ never trigger recruitment.)
+    if (next >= 2 && next <= 6) {
       const snap = await get(playersRef);
       const alive = Object.values(snap.val() || {}).filter(p => p.status === 'alive');
       const aliveT = alive.filter(p => p.role === 'traitor');
-      if (aliveT.length === 1) {
+      if (aliveT.length === 1 && alive.length > 7) {
         await updateGameState({ phase: 'recruitment', recruitedPlayer: null });
         return;
       }
