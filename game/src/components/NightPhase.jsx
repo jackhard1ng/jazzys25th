@@ -141,11 +141,22 @@ export default function NightPhase({
   }
 
   // Auto-submit whatever is typed when the timer hits zero.
+  // We only submit after we've SEEN the timer running — otherwise a
+  // bad initial render of useTimer (where timeLeft=0 before the effect
+  // computes the real remaining) would auto-submit empty scrolls.
+  const sawTimerRunning = useRef(false);
   useEffect(() => {
-    if (!isExpired || allSubmitted || prompts.length === 0) return;
+    if (!isExpired) {
+      // Mark that we saw the timer running so a later expiry counts.
+      if (timeLeft > 0) sawTimerRunning.current = true;
+      return;
+    }
+    if (!sawTimerRunning.current) return;
+    if (allSubmitted || prompts.length === 0) return;
     submitScrolls(round, playerName, buildScrollData(responses, signedFlags));
     setAllSubmitted(true);
-  }, [isExpired]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpired, timeLeft]);
 
   function handleBonusSubmit() {
     if (!bonusText.trim()) return;
