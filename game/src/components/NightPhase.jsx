@@ -4,7 +4,7 @@ import PlayerPortrait from './PlayerPortrait';
 import useTimer from '../hooks/useTimer';
 import {
   submitScrolls, sendTraitorMessage, submitMurderVote,
-  onValue, ref, db,
+  onValue, get, ref, db,
 } from '../firebase';
 
 // ============================================================
@@ -16,7 +16,39 @@ export default function NightPhase({
   player, playerName, isTraitor, alivePlayers, config,
   nightPhase, timerEnd, round, traitorChat, murderVotes,
 }) {
-  const prompts = nightPhase?.prompts || [];
+  // Keep our own copy of the prompts. Seed it with whatever the parent
+  // passed (via the shared useGame subscription), but also subscribe
+  // directly to /game/nightPhase ourselves and re-fetch on mount with
+  // get(). This belt-and-suspenders approach prevents the "I have to
+  // refresh to see scrolls" bug when the shared subscription is slow
+  // or has been suspended by the mobile browser.
+  const [localNightPhase, setLocalNightPhase] = useState(nightPhase);
+
+  useEffect(() => {
+    let cancelled = false;
+    // 1. Direct one-time fetch — guaranteed fresh data on mount.
+    get(ref(db, 'game/nightPhase')).then(snap => {
+      if (cancelled) return;
+      const v = snap.val();
+      if (v) setLocalNightPhase(v);
+    }).catch(() => {});
+
+    // 2. Live subscription — picks up changes mid-round.
+    const off = onValue(ref(db, 'game/nightPhase'), snap => {
+      if (cancelled) return;
+      const v = snap.val();
+      if (v) setLocalNightPhase(v);
+    });
+    return () => { cancelled = true; off(); };
+  }, [round]);
+
+  // Whenever the parent prop changes (subscription delivered an update),
+  // mirror it into local state so we never fall behind.
+  useEffect(() => {
+    if (nightPhase) setLocalNightPhase(nightPhase);
+  }, [nightPhase]);
+
+  const prompts = localNightPhase?.prompts || [];
   const { timeLeft, isExpired } = useTimer(timerEnd);
 
   // Prompt responses (parallel arrays: text + signed flag) — one entry per prompt
