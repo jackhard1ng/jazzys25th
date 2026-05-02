@@ -19,12 +19,9 @@ export default function NightPhase({
   const prompts = nightPhase?.prompts || [];
   const { timeLeft, isExpired } = useTimer(timerEnd);
 
-  // Prompt responses (parallel arrays: text + signed flag)
+  // Prompt responses (parallel arrays: text + signed flag) — one entry per prompt
   const [responses, setResponses] = useState([]);
   const [signedFlags, setSignedFlags] = useState([]);
-  const [currentPromptIdx, setCurrentPromptIdx] = useState(0);
-  const [currentText, setCurrentText] = useState('');
-  const [signCurrent, setSignCurrent] = useState(false);
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [bonusMode, setBonusMode] = useState(false);
 
@@ -35,8 +32,6 @@ export default function NightPhase({
   const [murderTarget, setMurderTarget] = useState('');
   const chatEndRef = useRef(null);
 
-  const minChars = config.minCharCount || 15;
-
   // Reset all per-round state whenever the round number changes (or the
   // host kicks off a fresh set of prompts mid-round). Without this, a
   // player who finished round 1 would still see the "all submitted"
@@ -44,18 +39,10 @@ export default function NightPhase({
   useEffect(() => {
     setResponses(new Array(prompts.length).fill(''));
     setSignedFlags(new Array(prompts.length).fill(false));
-    setCurrentPromptIdx(0);
-    setCurrentText('');
-    setSignCurrent(false);
     setAllSubmitted(false);
     setBonusMode(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round, prompts.length]);
-
-  // When advancing to a new prompt, reset the per-prompt sign toggle.
-  useEffect(() => {
-    setSignCurrent(false);
-  }, [currentPromptIdx]);
 
   // Auto-scroll traitor chat
   useEffect(() => {
@@ -87,57 +74,37 @@ export default function NightPhase({
     });
   }
 
-  function handleSubmitResponse() {
-    if (currentText.length < minChars && !isTraitor) return;
-
-    const newResponses = [...responses];
-    const newSigned = [...signedFlags];
-    newResponses[currentPromptIdx] = currentText;
-    newSigned[currentPromptIdx] = signCurrent;
-    setResponses(newResponses);
-    setSignedFlags(newSigned);
-
-    if (currentPromptIdx < prompts.length - 1) {
-      setCurrentPromptIdx(currentPromptIdx + 1);
-      setCurrentText('');
-    } else {
-      submitScrolls(round, playerName, buildScrollData(newResponses, newSigned));
-      setAllSubmitted(true);
-      if (!isTraitor) setBonusMode(true);
-    }
+  function updateResponse(i, text) {
+    setResponses(prev => {
+      const next = [...prev];
+      next[i] = text;
+      return next;
+    });
   }
 
-  function handleSkipPrompt() {
-    if (!isTraitor) return;
-    const newResponses = [...responses];
-    const newSigned = [...signedFlags];
-    newResponses[currentPromptIdx] = '';
-    newSigned[currentPromptIdx] = false;
-    setResponses(newResponses);
-    setSignedFlags(newSigned);
+  function updateSigned(i, signed) {
+    setSignedFlags(prev => {
+      const next = [...prev];
+      next[i] = signed;
+      return next;
+    });
+  }
 
-    if (currentPromptIdx < prompts.length - 1) {
-      setCurrentPromptIdx(currentPromptIdx + 1);
-      setCurrentText('');
-    } else {
-      submitScrolls(round, playerName, buildScrollData(newResponses, newSigned));
-      setAllSubmitted(true);
-    }
+  function handleSubmitAll() {
+    submitScrolls(round, playerName, buildScrollData(responses, signedFlags));
+    setAllSubmitted(true);
+    if (!isTraitor) setBonusMode(true);
   }
 
   // Auto-submit whatever is typed when the timer hits zero.
   useEffect(() => {
     if (!isExpired || allSubmitted || prompts.length === 0) return;
-    const finalText = [...responses];
-    const finalSigned = [...signedFlags];
-    finalText[currentPromptIdx] = currentText; // capture in-progress prompt
-    finalSigned[currentPromptIdx] = signCurrent;
-    submitScrolls(round, playerName, buildScrollData(finalText, finalSigned));
+    submitScrolls(round, playerName, buildScrollData(responses, signedFlags));
     setAllSubmitted(true);
   }, [isExpired]);
 
   function handleBonusSubmit() {
-    if (bonusText.length < minChars) return;
+    if (!bonusText.trim()) return;
     // Bonus prompts are anonymous-optional scrolls (always anonymous here).
     submitScrolls(round, `${playerName}_bonus_${bonusIdx}`, [{
       text: bonusText,
@@ -245,157 +212,113 @@ export default function NightPhase({
       {(!isTraitor || !showTraitorChat) && (
         <div className="fade-in">
           {!allSubmitted && prompts.length > 0 ? (
-            <div className="panel" style={{ marginBottom: 15 }}>
+            <div>
               <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: 10,
+                fontFamily: 'var(--font-heading)',
+                fontSize: '0.75rem',
+                color: 'var(--text-dim)',
+                letterSpacing: 2,
+                textAlign: 'center',
+                marginBottom: 12,
               }}>
-                <span style={{
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '0.75rem',
-                  color: 'var(--text-dim)',
-                  letterSpacing: 1,
-                }}>
-                  SCROLL {currentPromptIdx + 1} OF {prompts.length}
-                </span>
-                <span style={{
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '0.75rem',
-                  color: currentText.length >= minChars ? 'var(--green-light)' : 'var(--text-dim)',
-                  letterSpacing: 1,
-                }}>
-                  {currentText.length}/{minChars} MIN
-                </span>
+                {prompts.length} SCROLL{prompts.length !== 1 ? 'S' : ''} — ANSWER ANY OR ALL
               </div>
 
-              {/* Mode badge */}
-              {(() => {
-                const mode = prompts[currentPromptIdx]?.mode;
+              {prompts.map((p, i) => {
+                const mode = p?.mode;
                 const badge = mode === 'signed'
                   ? { label: 'PUBLIC · SIGNED', color: 'var(--gold)' }
                   : mode === 'optional'
                     ? { label: 'PUBLIC · YOU CHOOSE', color: 'var(--crimson-light)' }
                     : { label: 'PRIVATE · COVER', color: 'var(--text-dim)' };
                 return (
-                  <div style={{
-                    display: 'inline-block',
-                    padding: '3px 10px',
-                    fontFamily: 'var(--font-heading)',
-                    fontSize: '0.65rem',
-                    letterSpacing: 2,
-                    color: badge.color,
-                    border: `1px solid ${badge.color}`,
-                    borderRadius: 4,
-                    marginBottom: 10,
-                    opacity: 0.9,
-                  }}>
-                    {badge.label}
+                  <div key={i} className="panel" style={{ marginBottom: 12 }}>
+                    <div style={{
+                      display: 'inline-block',
+                      padding: '3px 10px',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: '0.65rem',
+                      letterSpacing: 2,
+                      color: badge.color,
+                      border: `1px solid ${badge.color}`,
+                      borderRadius: 4,
+                      marginBottom: 8,
+                      opacity: 0.9,
+                    }}>
+                      {badge.label}
+                    </div>
+
+                    <div style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '1.15rem',
+                      fontStyle: 'italic',
+                      color: 'var(--gold)',
+                      marginBottom: 10,
+                      lineHeight: 1.4,
+                    }}>
+                      "{p?.text}"
+                    </div>
+
+                    <textarea
+                      className="input"
+                      placeholder="Write your response..."
+                      value={responses[i] || ''}
+                      onChange={e => updateResponse(i, e.target.value)}
+                      rows={3}
+                      style={{ marginBottom: 8 }}
+                    />
+
+                    {mode === 'optional' && (
+                      <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: '0.75rem',
+                        letterSpacing: 1,
+                        color: signedFlags[i] ? 'var(--gold)' : 'var(--text-dim)',
+                        cursor: 'pointer',
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={!!signedFlags[i]}
+                          onChange={e => updateSigned(i, e.target.checked)}
+                          style={{ accentColor: 'var(--gold)', width: 16, height: 16 }}
+                        />
+                        {signedFlags[i] ? `Signed as ${playerName}` : 'Anonymous (tap to sign)'}
+                      </label>
+                    )}
+                    {mode === 'signed' && (
+                      <div style={{
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: '0.7rem',
+                        letterSpacing: 1,
+                        color: 'var(--gold)',
+                      }}>
+                        This scroll will display your name on the TV.
+                      </div>
+                    )}
+                    {mode === 'filler' && (
+                      <div style={{
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: '0.7rem',
+                        letterSpacing: 1,
+                        color: 'var(--text-dim)',
+                      }}>
+                        Private — never displayed. Skip if you want.
+                      </div>
+                    )}
                   </div>
                 );
-              })()}
+              })}
 
-              {/* Prompt text */}
-              <div style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: '1.2rem',
-                fontStyle: 'italic',
-                color: 'var(--gold)',
-                marginBottom: 12,
-                lineHeight: 1.4,
-              }}>
-                "{prompts[currentPromptIdx]?.text}"
-              </div>
-
-              {/* Response input */}
-              <textarea
-                className="input"
-                placeholder="Write your response..."
-                value={currentText}
-                onChange={e => setCurrentText(e.target.value)}
-                rows={3}
-                style={{ marginBottom: 10 }}
-              />
-
-              {/* Sign-name UI: optional prompts only. Signed prompts are always signed. */}
-              {prompts[currentPromptIdx]?.mode === 'optional' && (
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 10,
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '0.8rem',
-                  letterSpacing: 1,
-                  color: signCurrent ? 'var(--gold)' : 'var(--text-dim)',
-                  cursor: 'pointer',
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={signCurrent}
-                    onChange={e => setSignCurrent(e.target.checked)}
-                    style={{ accentColor: 'var(--gold)', width: 16, height: 16 }}
-                  />
-                  {signCurrent ? `Signed as ${playerName}` : 'Anonymous (tap to sign)'}
-                </label>
-              )}
-              {prompts[currentPromptIdx]?.mode === 'signed' && (
-                <div style={{
-                  marginBottom: 10,
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '0.75rem',
-                  letterSpacing: 1,
-                  color: 'var(--gold)',
-                }}>
-                  This scroll will display your name on the TV.
-                </div>
-              )}
-              {prompts[currentPromptIdx]?.mode === 'filler' && (
-                <div style={{
-                  marginBottom: 10,
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '0.75rem',
-                  letterSpacing: 1,
-                  color: 'var(--text-dim)',
-                }}>
-                  This scroll is private — never displayed.
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSubmitResponse}
-                  disabled={!isTraitor && currentText.length < minChars}
-                  style={{ flex: 1 }}
-                >
-                  {currentPromptIdx < prompts.length - 1 ? 'Next' : 'Submit All'}
-                </button>
-                {isTraitor && (
-                  <button
-                    className="btn btn-dark btn-sm"
-                    onClick={handleSkipPrompt}
-                  >
-                    Skip
-                  </button>
-                )}
-              </div>
-
-              {/* Progress dots */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
-                {prompts.map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: i < currentPromptIdx ? 'var(--gold)'
-                        : i === currentPromptIdx ? 'var(--gold-bright, #FFD700)'
-                        : 'var(--stone)',
-                      transition: 'background 0.3s',
-                    }}
-                  />
-                ))}
-              </div>
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleSubmitAll}
+                style={{ width: '100%', marginTop: 4 }}
+              >
+                Submit All Scrolls
+              </button>
             </div>
           ) : allSubmitted && !isTraitor ? (
             /* WAITING / BONUS PROMPTS for faithful */
@@ -440,7 +363,7 @@ export default function NightPhase({
                   <button
                     className="btn btn-gold"
                     onClick={handleBonusSubmit}
-                    disabled={bonusText.length < minChars}
+                    disabled={!bonusText.trim()}
                     style={{ width: '100%' }}
                   >
                     Submit Bonus Scroll

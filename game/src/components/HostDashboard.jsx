@@ -19,7 +19,7 @@ export default function HostDashboard() {
     connected,
   } = useGame();
 
-  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, rolledTraitorCount, paused } = gameState;
+  const { phase, round, timerEnd, murderTarget, banishedPlayer, shieldBlocked, winCondition, paused } = gameState;
 
   const [newPlayerName, setNewPlayerName] = useState('');
   const [revealedRoles, setRevealedRoles] = useState({});
@@ -141,14 +141,13 @@ export default function HostDashboard() {
     const shuffled = [...names].sort(() => Math.random() - 0.5);
     const traitorNames = shuffled.slice(0, count);
 
-    await updateGameConfig({ numTraitors: count });
+    // Deliberately do NOT write the count to Firebase — anyone with browser
+    // dev tools could read it. The roles themselves are written to each
+    // player record (only that player's phone displays it on its own screen).
     await assignRoles(traitorNames);
-    // Lock the lobby and play the dramatic count reveal on the TV.
-    // The traitorReveal phase auto-advances to roleReveal after ~8s.
     await updateGameState({
       phase: 'traitorReveal',
       round: 1,
-      rolledTraitorCount: count,
     });
   }
 
@@ -634,7 +633,7 @@ export default function HostDashboard() {
           TRAITOR REVEAL — slot-machine count + portrait flicker
           ============================================================ */}
       {phase === 'traitorReveal' && (
-        <TraitorRevealAnimation count={rolledTraitorCount} players={players} />
+        <TraitorRevealAnimation players={players} />
       )}
 
       {/* ============================================================
@@ -1576,36 +1575,21 @@ export default function HostDashboard() {
 
 // ============================================================
 // TRAITOR REVEAL ANIMATION
-// 1. Slot-machine of 3/4/5 spinning, locks on the rolled count.
+// 1. Dramatic title pulse — the count is intentionally never shown.
 // 2. Portrait flicker — random highlights, never resolving (mystery preserved).
 // 3. "Check your phones" prompt before auto-advancing to roleReveal.
 // ============================================================
-function TraitorRevealAnimation({ count, players }) {
-  const [stage, setStage] = useState('spinning');
-  const [displayNum, setDisplayNum] = useState(3);
+function TraitorRevealAnimation({ players }) {
+  // Note: the rolled traitor count is intentionally NOT displayed.
+  // Players (and the room) should never know how many traitors exist.
+  const [stage, setStage] = useState('locked');
   const [flickerIdx, setFlickerIdx] = useState(0);
   const playerNames = Object.keys(players || {});
 
-  // Stage 1: spin numbers for ~2.5s, then lock
-  useEffect(() => {
-    if (stage !== 'spinning') return;
-    let i = 0;
-    const id = setInterval(() => {
-      setDisplayNum([3, 4, 5][i % 3]);
-      i++;
-    }, 80);
-    const stopAt = setTimeout(() => {
-      clearInterval(id);
-      setDisplayNum(count);
-      setStage('locked');
-    }, 2500);
-    return () => { clearInterval(id); clearTimeout(stopAt); };
-  }, [stage, count]);
-
-  // Stage 2: after lock pause, do portrait flicker for ~3.5s
+  // Stage 1: dramatic pause on the title, then portrait flicker.
   useEffect(() => {
     if (stage !== 'locked') return;
-    const start = setTimeout(() => setStage('flickering'), 1200);
+    const start = setTimeout(() => setStage('flickering'), 2200);
     return () => clearTimeout(start);
   }, [stage]);
 
@@ -1625,7 +1609,7 @@ function TraitorRevealAnimation({ count, players }) {
     <div className="fade-in" style={{ textAlign: 'center', padding: '40px 20px', minHeight: 400 }}>
       <div style={{
         fontFamily: 'var(--font-heading)',
-        fontSize: '1rem',
+        fontSize: '1.1rem',
         color: 'var(--text-dim)',
         letterSpacing: 4,
         marginBottom: 30,
@@ -1635,27 +1619,24 @@ function TraitorRevealAnimation({ count, players }) {
 
       <div style={{
         fontFamily: 'var(--font-display)',
-        fontSize: 'clamp(6rem, 22vw, 14rem)',
-        color: stage === 'spinning' ? 'var(--text-dim)' : 'var(--crimson-light)',
-        letterSpacing: 4,
-        textShadow: stage !== 'spinning' ? '0 0 60px rgba(220,20,60,0.8), 0 0 120px rgba(139,0,0,0.5)' : 'none',
-        transition: 'color 0.6s, text-shadow 0.6s',
-        lineHeight: 1,
-        animation: stage === 'locked' || stage === 'flickering' ? 'candleFlicker 3s infinite' : 'none',
-      }}>
-        {displayNum}
-      </div>
-
-      <div style={{
-        fontFamily: 'var(--font-display)',
-        fontSize: 'clamp(1.2rem, 3vw, 2rem)',
+        fontSize: 'clamp(3rem, 9vw, 6rem)',
         color: 'var(--crimson-light)',
-        letterSpacing: 6,
-        marginTop: 20,
-        opacity: stage === 'spinning' ? 0.4 : 1,
-        transition: 'opacity 0.6s',
+        letterSpacing: 8,
+        textShadow: '0 0 60px rgba(220,20,60,0.8), 0 0 120px rgba(139,0,0,0.5)',
+        lineHeight: 1.1,
+        animation: 'candleFlicker 3s infinite',
       }}>
         TRAITORS
+      </div>
+      <div style={{
+        fontFamily: 'var(--font-body)',
+        fontSize: 'clamp(1rem, 2.2vw, 1.4rem)',
+        color: 'var(--text-dim)',
+        fontStyle: 'italic',
+        marginTop: 18,
+        opacity: 0.85,
+      }}>
+        How many? Only they know.
       </div>
 
       {(stage === 'flickering' || stage === 'checkPhones') && playerNames.length > 0 && (
