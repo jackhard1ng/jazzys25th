@@ -1448,6 +1448,47 @@ export default function HostDashboard() {
           }}>
             {alivePlayers.length} players alive
           </span>
+          {/* Manual eliminate — emergency fixup if a glitch leaves the
+              wrong people alive. Pick a player + status. */}
+          <select
+            className="select"
+            id="admin-kill-target"
+            defaultValue=""
+            style={{ fontSize: '0.75rem', padding: '4px 8px', maxWidth: 140 }}
+          >
+            <option value="">Manual kill…</option>
+            {alivePlayers.map(p => (
+              <option key={p.name} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+          <button
+            className="btn btn-sm btn-dark"
+            onClick={() => {
+              const sel = document.getElementById('admin-kill-target');
+              const name = sel?.value;
+              if (!name) return;
+              if (!window.confirm(`Mark ${name} as MURDERED? (admin override)`)) return;
+              handleManualEliminate(name, 'murdered');
+              sel.value = '';
+            }}
+            title="Manual override — mark as murdered"
+          >
+            ☠ Murder
+          </button>
+          <button
+            className="btn btn-sm btn-dark"
+            onClick={() => {
+              const sel = document.getElementById('admin-kill-target');
+              const name = sel?.value;
+              if (!name) return;
+              if (!window.confirm(`Mark ${name} as BANISHED? (admin override)`)) return;
+              handleManualEliminate(name, 'banished');
+              sel.value = '';
+            }}
+            title="Manual override — mark as banished"
+          >
+            ✕ Banish
+          </button>
           {phase === 'night' && (
             <button className="btn btn-sm btn-dark" onClick={handlePause}>
               {paused ? '▶ Resume' : '⏸ Pause'}
