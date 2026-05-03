@@ -204,13 +204,24 @@ export default function HostDashboard() {
     await clearTimer();
     await set(ref(db, 'game/nightPhase'), { active: false, prompts: [] });
 
-    // Tally traitor murder votes. Ignore votes for shielded or non-alive
-    // players in case a shield was awarded after the vote was cast.
+    // CRITICAL: fetch fresh from Firebase. handleEndNight is often called
+    // from a setTimeout scheduled when the night BEGAN — at that moment
+    // murderVotes was {} (just cleared). The closure-captured copy
+    // would still be empty even though traitors have voted in the
+    // meantime. Always read the latest state from the source of truth.
+    const [votesSnap, playersSnap] = await Promise.all([
+      get(ref(db, 'game/murderVotes')),
+      get(playersRef),
+    ]);
+    const freshMurderVotes = votesSnap.val() || {};
+    const allPlayers = playersSnap.val() || {};
+    const freshAlive = Object.values(allPlayers).filter(p => p?.status === 'alive');
+
     const validNames = new Set(
-      alivePlayers.filter(p => !p.shield && p.role !== 'traitor').map(p => p.name)
+      freshAlive.filter(p => !p.shield && p.role !== 'traitor').map(p => p.name)
     );
     const tally = {};
-    Object.values(murderVotes).forEach(v => {
+    Object.values(freshMurderVotes).forEach(v => {
       if (v?.target && validNames.has(v.target)) {
         tally[v.target] = (tally[v.target] || 0) + 1;
       }
@@ -231,8 +242,7 @@ export default function HostDashboard() {
     // ends we always head straight to the murder reveal.
     let shieldWasBlocked = false;
     if (target) {
-      const snap = await get(playersRef);
-      const targetPlayer = (snap.val() || {})[target];
+      const targetPlayer = allPlayers[target];
       if (targetPlayer?.status === 'alive') {
         if (targetPlayer.shield) {
           await updatePlayerShield(target, false);
